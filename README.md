@@ -54,6 +54,11 @@ Authentification par jeton Sanctum : `Authorization: Bearer <token>`. Durée de 
 | GET | `/api/v1/roles` | `users.manage` |
 | GET, POST | `/api/v1/users` | `users.manage` |
 | PUT | `/api/v1/users/{id}` | `users.manage` |
+| GET | `/api/v1/categories` | `catalog.view` |
+| POST, PUT | `/api/v1/categories`, `/api/v1/categories/{id}` (`name`, `description`, `active`) | `catalog.manage` |
+| GET | `/api/v1/articles` (`search`, `category_id`, `status` = active·inactive·all, `low`, `page`) — stock par emplacement inclus | `catalog.view` |
+| GET | `/api/v1/articles/{id}`, `/api/v1/articles/barcode/{code}` (404 si code inconnu) | `catalog.view` |
+| POST, PUT | `/api/v1/articles`, `/api/v1/articles/{id}` — pas de suppression, `active: false` ; prix exigent `prices.manage` | `catalog.manage` |
 | GET | `/api/v1/stock/balances` (`article_id`, `location_id`, `search`, `low`) | `stock.view` |
 | GET | `/api/v1/stock/movements` (`article_id`, `location_id`, `type`, `from`, `to`) | `stock.view` |
 | POST | `/api/v1/stock/adjustments` (`article_id`, `location_id`, `quantity` signée ≤ 3 décimales, `reason`, `unit_cost`) | `stock.adjust` |

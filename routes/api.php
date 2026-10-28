@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\Api\V1\ArticleController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\StockController;
 use App\Http\Controllers\Api\V1\UserController;
@@ -12,6 +14,19 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::get('auth/me', [AuthController::class, 'me']);
         Route::post('auth/logout', [AuthController::class, 'logout']);
+
+        Route::middleware('can:catalog.view')->group(function () {
+            Route::get('categories', [CategoryController::class, 'index']);
+            Route::get('articles', [ArticleController::class, 'index']);
+            Route::get('articles/barcode/{barcode}', [ArticleController::class, 'byBarcode']);
+            Route::get('articles/{article}', [ArticleController::class, 'show']);
+        });
+        Route::middleware('can:catalog.manage')->group(function () {
+            Route::post('categories', [CategoryController::class, 'store']);
+            Route::put('categories/{category}', [CategoryController::class, 'update']);
+            Route::post('articles', [ArticleController::class, 'store']);
+            Route::put('articles/{article}', [ArticleController::class, 'update']);
+        });
 
         Route::middleware('can:stock.view')->prefix('stock')->group(function () {
             Route::get('balances', [StockController::class, 'balances']);
