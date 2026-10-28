@@ -3,8 +3,10 @@
 use App\Http\Controllers\Api\V1\ArticleController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CategoryController;
+use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\StockController;
+use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -27,6 +29,9 @@ Route::prefix('v1')->group(function () {
             Route::post('articles', [ArticleController::class, 'store']);
             Route::put('articles/{article}', [ArticleController::class, 'update']);
         });
+
+        Route::apiResource('suppliers', SupplierController::class)->except('destroy')->middleware('can:suppliers.manage');
+        Route::apiResource('customers', CustomerController::class)->except('destroy')->middleware('can:customers.manage');
 
         Route::middleware('can:stock.view')->prefix('stock')->group(function () {
             Route::get('balances', [StockController::class, 'balances']);
