@@ -61,6 +61,10 @@ Authentification par jeton Sanctum : `Authorization: Bearer <token>`. Durée de 
 | POST, PUT | `/api/v1/articles`, `/api/v1/articles/{id}` — pas de suppression, `active: false` ; prix exigent `prices.manage` | `catalog.manage` |
 | GET, POST, PUT | `/api/v1/suppliers` (`search`, `status`) — pas de suppression | `suppliers.manage` |
 | GET, POST, PUT | `/api/v1/customers` (`search`, `status`) — pas de suppression | `customers.manage` |
+| GET | `/api/v1/payment-methods`, `/api/v1/locations` | connecté |
+| GET, POST, PUT | `/api/v1/purchases` (`search`, `status`, `supplier_id`, `unpaid`, `from`, `to`) — PUT sur brouillon seulement ; `confirm: true` valide | `purchases.manage` |
+| POST | `/api/v1/purchases/{id}/confirm`, `/cancel` (`reason`), `/payments` (`amount`, `payment_method_id`) | `purchases.manage` |
+| POST | `/api/v1/purchases/{id}/receipts` (`location_id`, `lines[]` : `purchase_line_id`, `quantity`) — entrée en stock | `receipts.validate` |
 | GET | `/api/v1/stock/balances` (`article_id`, `location_id`, `search`, `low`) | `stock.view` |
 | GET | `/api/v1/stock/movements` (`article_id`, `location_id`, `type`, `from`, `to`) | `stock.view` |
 | POST | `/api/v1/stock/adjustments` (`article_id`, `location_id`, `quantity` signée ≤ 3 décimales, `reason`, `unit_cost`) | `stock.adjust` |
@@ -77,6 +81,11 @@ Authentification par jeton Sanctum : `Authorization: Bearer <token>`. Durée de 
 - `stock_movements` — journal en ajout seul (quantité signée, solde après mouvement, document source) ; une erreur
   se corrige par un mouvement inverse. `stock_balances` — solde courant, `CHECK (quantity_on_hand >= 0)` sur PostgreSQL.
 - `app/Enums/MovementType.php` — types de mouvement ; chacun impose le signe de la quantité.
+- `app/Services/PurchaseService.php` — acquisitions (brouillon → commandée → partiellement reçue → reçue, ou annulée),
+  réceptions (seules les quantités reçues entrent en stock, à l'emplacement choisi) et paiements fournisseurs. Le coût
+  d'entrée = prix net de remise + part des frais au prorata du montant des lignes.
+- `app/Services/DocumentNumber.php` — numéros annuels sans trou (`ACH-2026-00001`, `REC-2026-00001`).
+- `app/Exceptions/BusinessException.php` — règle de gestion non respectée → 422 avec message en français.
 - Quantités en `DECIMAL(14,3)` (chaînes côté PHP, calculs en bcmath via `app/Support/Decimal.php`). Un article
   n'accepte des décimales que si `allow_decimal_quantity` est vrai (câble au mètre…).
 - Valorisation au **coût moyen pondéré** par article (`articles.average_cost`, 4 décimales) : recalculé à chaque entrée

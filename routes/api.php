@@ -4,10 +4,13 @@ use App\Http\Controllers\Api\V1\ArticleController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\PurchaseController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\StockController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\UserController;
+use App\Models\Location;
+use App\Models\PaymentMethod;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -29,6 +32,17 @@ Route::prefix('v1')->group(function () {
             Route::post('articles', [ArticleController::class, 'store']);
             Route::put('articles/{article}', [ArticleController::class, 'update']);
         });
+
+        Route::get('payment-methods', fn () => ['data' => PaymentMethod::where('active', true)->orderBy('id')->get(['id', 'code', 'name'])]);
+        Route::get('locations', fn () => ['data' => Location::activeInOrder()->map->only(['id', 'code', 'name', 'type', 'is_sellable'])->values()]);
+
+        Route::middleware('can:purchases.manage')->group(function () {
+            Route::apiResource('purchases', PurchaseController::class)->except('destroy');
+            Route::post('purchases/{purchase}/confirm', [PurchaseController::class, 'confirm']);
+            Route::post('purchases/{purchase}/cancel', [PurchaseController::class, 'cancel']);
+            Route::post('purchases/{purchase}/payments', [PurchaseController::class, 'pay']);
+        });
+        Route::post('purchases/{purchase}/receipts', [PurchaseController::class, 'receive'])->middleware('can:receipts.validate');
 
         Route::apiResource('suppliers', SupplierController::class)->except('destroy')->middleware('can:suppliers.manage');
         Route::apiResource('customers', CustomerController::class)->except('destroy')->middleware('can:customers.manage');

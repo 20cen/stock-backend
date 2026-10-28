@@ -1,0 +1,35 @@
+<?php
+
+namespace App\Enums;
+
+enum PurchaseStatus: string
+{
+    case Draft = 'draft';
+    case Ordered = 'ordered';
+    case PartiallyReceived = 'partially_received';
+    case Received = 'received';
+    case Cancelled = 'cancelled';
+
+    public function label(): string
+    {
+        return match ($this) {
+            self::Draft => 'Brouillon',
+            self::Ordered => 'Commandée',
+            self::PartiallyReceived => 'Partiellement reçue',
+            self::Received => 'Reçue',
+            self::Cancelled => 'Annulée',
+        };
+    }
+
+    /** Des marchandises peuvent encore être réceptionnées. */
+    public function canReceive(): bool
+    {
+        return $this === self::Ordered || $this === self::PartiallyReceived;
+    }
+
+    /** Un paiement fournisseur peut être enregistré (acquisition validée et non annulée). */
+    public function canPay(): bool
+    {
+        return ! in_array($this, [self::Draft, self::Cancelled], true);
+    }
+}
