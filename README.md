@@ -65,6 +65,11 @@ Authentification par jeton Sanctum : `Authorization: Bearer <token>`. Durée de 
 | GET, POST, PUT | `/api/v1/purchases` (`search`, `status`, `supplier_id`, `unpaid`, `from`, `to`) — PUT sur brouillon seulement ; `confirm: true` valide | `purchases.manage` |
 | POST | `/api/v1/purchases/{id}/confirm`, `/cancel` (`reason`), `/payments` (`amount`, `payment_method_id`) | `purchases.manage` |
 | POST | `/api/v1/purchases/{id}/receipts` (`location_id`, `lines[]` : `purchase_line_id`, `quantity`) — entrée en stock | `receipts.validate` |
+| GET | `/api/v1/cash-sessions/current`, `/api/v1/cash-sessions`, `/api/v1/cash-sessions/{id}` | `cash.operate` |
+| POST | `/api/v1/cash-sessions` (`opening_amount`), `/api/v1/cash-sessions/{id}/close` (`declared_cash`, `variance_reason`) | `cash.operate` |
+| GET | `/api/v1/sales/config`, `/api/v1/sales/customers?search=` | `sales.create` |
+| POST | `/api/v1/sales` (`lines[]` : `article_id`, `quantity`, `discount` ; `payments[]` : `payment_method_id`, `amount` ; `customer_id`) | `sales.create` |
+| GET | `/api/v1/sales`, `/api/v1/sales/{id}` — les siennes, ou toutes avec `sales.view_all` | `sales.view_own` |
 | GET, POST | `/api/v1/transfers` (`search`, `location_id`, `from`, `to`) — validation immédiate, pas de modification | `transfers.manage` |
 | GET | `/api/v1/stock/summary` — articles, ruptures, stock faible ; valeur au CMP si `prices.manage` | `stock.view` |
 | GET | `/api/v1/stock/balances` (`article_id`, `location_id`, `search`, `low`) | `stock.view` |
@@ -86,6 +91,11 @@ Authentification par jeton Sanctum : `Authorization: Bearer <token>`. Durée de 
 - `app/Services/PurchaseService.php` — acquisitions (brouillon → commandée → partiellement reçue → reçue, ou annulée),
   réceptions (seules les quantités reçues entrent en stock, à l'emplacement choisi) et paiements fournisseurs. Le coût
   d'entrée = prix net de remise + part des frais au prorata du montant des lignes.
+- `app/Services/SaleService.php` — vente atomique : caisse ouverte obligatoire, prix du catalogue, remise du caissier
+  plafonnée (`settings` : `sales.cashier_discount_limit_percent`, 5 % par défaut), paiement mixte, monnaie rendue
+  sur les espèces, crédit seulement si `sales.allow_credit` et client identifié ; CMP figé sur chaque ligne.
+- `app/Services/CashSessionService.php` — ouverture (une session ouverte par caissier, index unique partiel) et
+  clôture : solde théorique par mode, espèces comptées, écart justifié obligatoire.
 - `app/Services/DocumentNumber.php` — numéros annuels sans trou (`ACH-2026-00001`, `REC-2026-00001`).
 - `app/Exceptions/BusinessException.php` — règle de gestion non respectée → 422 avec message en français.
 - Quantités en `DECIMAL(14,3)` (chaînes côté PHP, calculs en bcmath via `app/Support/Decimal.php`). Un article

@@ -2,10 +2,12 @@
 
 use App\Http\Controllers\Api\V1\ArticleController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\CashSessionController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\PurchaseController;
 use App\Http\Controllers\Api\V1\RoleController;
+use App\Http\Controllers\Api\V1\SaleController;
 use App\Http\Controllers\Api\V1\StockController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\TransferController;
@@ -44,6 +46,24 @@ Route::prefix('v1')->group(function () {
             Route::post('purchases/{purchase}/payments', [PurchaseController::class, 'pay']);
         });
         Route::post('purchases/{purchase}/receipts', [PurchaseController::class, 'receive'])->middleware('can:receipts.validate');
+
+        // Caisse et ventes
+        Route::middleware('can:cash.operate')->group(function () {
+            Route::get('cash-sessions/current', [CashSessionController::class, 'current']);
+            Route::get('cash-sessions', [CashSessionController::class, 'index']);
+            Route::get('cash-sessions/{cashSession}', [CashSessionController::class, 'show']);
+            Route::post('cash-sessions', [CashSessionController::class, 'store']);
+            Route::post('cash-sessions/{cashSession}/close', [CashSessionController::class, 'close']);
+        });
+        Route::middleware('can:sales.create')->group(function () {
+            Route::get('sales/config', [SaleController::class, 'config']);
+            Route::get('sales/customers', [SaleController::class, 'customers']);
+            Route::post('sales', [SaleController::class, 'store']);
+        });
+        Route::middleware('can:sales.view_own')->group(function () {
+            Route::get('sales', [SaleController::class, 'index']);
+            Route::get('sales/{sale}', [SaleController::class, 'show']);
+        });
 
         Route::apiResource('transfers', TransferController::class)->only(['index', 'show', 'store'])->middleware('can:transfers.manage');
 
