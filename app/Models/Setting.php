@@ -18,9 +18,13 @@ class Setting extends Model
     /** Vente à crédit (paiement partiel) autorisée ; un client est alors obligatoire. */
     public const ALLOW_CREDIT = 'sales.allow_credit';
 
+    /** Délai de retour en jours après la vente ; au-delà, seul un responsable (returns.validate) l'accepte. */
+    public const RETURN_DAYS = 'returns.max_days';
+
     private const DEFAULTS = [
         self::CASHIER_DISCOUNT_LIMIT => '5',
         self::ALLOW_CREDIT => false,
+        self::RETURN_DAYS => 7,
     ];
 
     /**

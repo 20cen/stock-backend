@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\PurchaseController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SaleController;
+use App\Http\Controllers\Api\V1\SaleReturnController;
 use App\Http\Controllers\Api\V1\StockController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\TransferController;
@@ -63,6 +64,21 @@ Route::prefix('v1')->group(function () {
         Route::middleware('can:sales.view_own')->group(function () {
             Route::get('sales', [SaleController::class, 'index']);
             Route::get('sales/{sale}', [SaleController::class, 'show']);
+        });
+
+        Route::post('sales/{sale}/cancel', [SaleController::class, 'cancel'])->middleware('can:sales.cancel');
+
+        // Retours et remboursements
+        Route::middleware('can:returns.request')->group(function () {
+            Route::get('returns/sale', [SaleReturnController::class, 'saleLookup']);
+            Route::get('returns', [SaleReturnController::class, 'index']);
+            Route::get('returns/{saleReturn}', [SaleReturnController::class, 'show']);
+            Route::post('returns', [SaleReturnController::class, 'store']);
+        });
+        Route::middleware('can:returns.validate')->group(function () {
+            Route::post('returns/{saleReturn}/validate', [SaleReturnController::class, 'validateReturn']);
+            Route::post('returns/{saleReturn}/reject', [SaleReturnController::class, 'reject']);
+            Route::post('returns/{saleReturn}/refunds', [SaleReturnController::class, 'refund']);
         });
 
         Route::apiResource('transfers', TransferController::class)->only(['index', 'show', 'store'])->middleware('can:transfers.manage');

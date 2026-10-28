@@ -18,7 +18,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  */
 class SaleController extends Controller
 {
-    private const DETAIL = ['cashier', 'customer', 'location', 'cashSession', 'lines.article', 'payments.method'];
+    public const DETAIL = ['cashier', 'customer', 'location', 'cashSession', 'lines.article', 'lines.activeReturnLines', 'payments.method', 'refunds.method', 'returns'];
 
     public function __construct(private readonly SaleService $sales) {}
 
@@ -92,6 +92,18 @@ class SaleController extends Controller
         $sale = $this->sales->create($data, $request->user());
 
         return (new SaleResource($sale->load(self::DETAIL)))->response()->setStatusCode(201);
+    }
+
+    public function cancel(Request $request, Sale $sale): SaleResource
+    {
+        $data = $request->validate(
+            ['reason' => ['required', 'string', 'min:3', 'max:500']],
+            ['reason.required' => 'Le motif d’annulation est obligatoire.', 'reason.min' => 'Le motif doit contenir au moins 3 caractères.'],
+        );
+
+        $this->sales->cancel($sale, $request->user(), $data['reason']);
+
+        return new SaleResource($sale->refresh()->load(self::DETAIL));
     }
 
     /**

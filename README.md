@@ -70,6 +70,10 @@ Authentification par jeton Sanctum : `Authorization: Bearer <token>`. Durée de 
 | GET | `/api/v1/sales/config`, `/api/v1/sales/customers?search=` | `sales.create` |
 | POST | `/api/v1/sales` (`lines[]` : `article_id`, `quantity`, `discount` ; `payments[]` : `payment_method_id`, `amount` ; `customer_id`) | `sales.create` |
 | GET | `/api/v1/sales`, `/api/v1/sales/{id}` — les siennes, ou toutes avec `sales.view_all` | `sales.view_own` |
+| POST | `/api/v1/sales/{id}/cancel` (`reason`) — remise en stock et remboursement des paiements | `sales.cancel` |
+| GET | `/api/v1/returns`, `/api/v1/returns/{id}`, `/api/v1/returns/sale?reference=VTE-…` | `returns.request` |
+| POST | `/api/v1/returns` (`sale_id`, `reason`, `lines[]` : `sale_line_id`, `quantity`, `condition` good·damaged) | `returns.request` |
+| POST | `/api/v1/returns/{id}/validate` (`destinations`, `refund`), `/reject` (`reason`), `/refunds` (`amount`, `payment_method_id`) | `returns.validate` |
 | GET, POST | `/api/v1/transfers` (`search`, `location_id`, `from`, `to`) — validation immédiate, pas de modification | `transfers.manage` |
 | GET | `/api/v1/stock/summary` — articles, ruptures, stock faible ; valeur au CMP si `prices.manage` | `stock.view` |
 | GET | `/api/v1/stock/balances` (`article_id`, `location_id`, `search`, `low`) | `stock.view` |
@@ -96,6 +100,9 @@ Authentification par jeton Sanctum : `Authorization: Bearer <token>`. Durée de 
   sur les espèces, crédit seulement si `sales.allow_credit` et client identifié ; CMP figé sur chaque ligne.
 - `app/Services/CashSessionService.php` — ouverture (une session ouverte par caissier, index unique partiel) et
   clôture : solde théorique par mode, espèces comptées, écart justifié obligatoire.
+- `app/Services/ReturnService.php` — retours : demande sans effet sur le stock, validation qui fixe la destination
+  (endommagé → emplacement « défectueux » uniquement), quantité retournable = vendue − retours en cours/validés,
+  délai `returns.max_days` (7 j) ; remboursement distinct, plafonné au payé, sorti de la caisse de celui qui rembourse.
 - `app/Services/DocumentNumber.php` — numéros annuels sans trou (`ACH-2026-00001`, `REC-2026-00001`).
 - `app/Exceptions/BusinessException.php` — règle de gestion non respectée → 422 avec message en français.
 - Quantités en `DECIMAL(14,3)` (chaînes côté PHP, calculs en bcmath via `app/Support/Decimal.php`). Un article

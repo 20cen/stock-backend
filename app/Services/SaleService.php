@@ -11,6 +11,8 @@ use App\Models\Customer;
 use App\Models\Location;
 use App\Models\PaymentMethod;
 use App\Models\Sale;
+use App\Models\SaleLine;
+use App\Models\SaleReturn;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\Stock\StockChange;
@@ -32,9 +34,9 @@ class SaleService
 {
     public function __construct(
         private readonly StockService $stock,
-        private readonly CashSessionService $cash,
         private readonly DocumentNumber $numbers,
         private readonly AuditLogger $audit,
+        private readonly ReturnService $returns,
     ) {}
 
     /**
@@ -98,6 +100,41 @@ class SaleService
                 'total' => $total, 'discount_total' => $discountTotal, 'amount_paid' => $paid, 'change_given' => $change,
                 'customer_id' => $customer?->id, 'session' => $session->reference,
             ], userId: $by->id);
+
+            return $sale;
+        });
+    }
+
+    /**
+     * Annulation d'une vente validée (droit sales.cancel) : motif obligatoire, articles remis en stock
+     * à l'emplacement de vente, paiements remboursés par les mêmes moyens (RG-VTE-04, TST-022).
+     * Impossible si des retours existent déjà : on passe alors par les retours.
+     */
+    public function cancel(Sale $sale, User $by, string $reason): Sale
+    {
+        return DB::transaction(function () use ($sale, $by, $reason) {
+            $sale = Sale::lockForUpdate()->findOrFail($sale->id);
+            if ($sale->status !== Sale::VALIDATED) {
+                throw new BusinessException('Cette vente est déjà annulée.');
+            }
+            if ($sale->returns()->whereIn('status', [SaleReturn::PENDING, SaleReturn::VALIDATED])->exists()) {
+                throw new BusinessException('Des retours sont enregistrés sur cette vente : traitez-la par les retours.');
+            }
+
+            $this->stock->apply(
+                $sale->lines()->get()->map(fn (SaleLine $l) => StockChange::in($l->article_id, $sale->location_id, MovementType::SaleCancellation, $l->quantity, $l->unit_cost_snapshot))->all(),
+                $by,
+                $sale,
+                "Annulation de la vente {$sale->reference}",
+            );
+
+            // Remboursement de ce qui a été encaissé, par les mêmes moyens de paiement.
+            foreach ($sale->payments()->get() as $payment) {
+                $this->returns->pay($sale, null, ['payment_method_id' => $payment->payment_method_id, 'amount' => $payment->amount], $by);
+            }
+
+            $sale->refresh()->update(['status' => Sale::CANCELLED, 'cancelled_at' => now(), 'cancelled_by' => $by->id, 'cancel_reason' => $reason]);
+            $this->audit->log('sale.cancelled', $sale, before: ['status' => Sale::VALIDATED], after: ['status' => Sale::CANCELLED, 'refunded' => $sale->refunded_amount], reason: $reason, userId: $by->id);
 
             return $sale;
         });

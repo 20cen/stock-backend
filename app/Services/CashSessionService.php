@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\BusinessException;
 use App\Models\CashSession;
 use App\Models\PaymentMethod;
+use App\Models\Refund;
 use App\Models\SalePayment;
 use App\Models\User;
 use App\Support\Decimal;
@@ -72,14 +73,23 @@ class CashSessionService
             ->groupBy('payment_method_id')
             ->selectRaw('payment_method_id, SUM(amount) AS total')
             ->pluck('total', 'payment_method_id');
+        // Les remboursements faits depuis cette caisse viennent en déduction.
+        $refunds = Refund::where('cash_session_id', $session->id)
+            ->groupBy('payment_method_id')
+            ->selectRaw('payment_method_id, SUM(amount) AS total')
+            ->pluck('total', 'payment_method_id');
 
         $methods = PaymentMethod::orderBy('id')->get()
-            ->filter(fn (PaymentMethod $m) => $m->active || isset($sums[$m->id]))
+            ->filter(fn (PaymentMethod $m) => $m->active || isset($sums[$m->id]) || isset($refunds[$m->id]))
             ->map(fn (PaymentMethod $m) => [
                 'payment_method_id' => $m->id,
                 'code' => $m->code,
                 'name' => $m->name,
-                'amount' => Decimal::round((string) ($sums[$m->id] ?? '0'), 2),
+                'amount' => bcsub(
+                    Decimal::round((string) ($sums[$m->id] ?? '0'), 2),
+                    Decimal::round((string) ($refunds[$m->id] ?? '0'), 2),
+                    2,
+                ),
             ])->values()->all();
 
         $cash = collect($methods)->firstWhere('code', self::CASH)['amount'] ?? '0.00';

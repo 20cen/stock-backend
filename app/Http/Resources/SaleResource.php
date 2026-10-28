@@ -3,9 +3,12 @@
 namespace App\Http\Resources;
 
 use App\Enums\Permission;
+use App\Models\Refund;
 use App\Models\Sale;
 use App\Models\SaleLine;
 use App\Models\SalePayment;
+use App\Models\SaleReturn;
+use App\Services\ReturnService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -36,7 +39,10 @@ class SaleResource extends JsonResource
             'amount_paid' => $this->amount_paid,
             'balance_due' => $this->balance_due,
             'change_given' => $this->change_given,
+            'refunded_amount' => $this->refunded_amount,
             'notes' => $this->notes,
+            'cancelled_at' => $this->cancelled_at?->toIso8601String(),
+            'cancel_reason' => $this->cancel_reason,
             'lines_count' => $this->whenCounted('lines'),
             'lines' => $this->whenLoaded('lines', fn () => $this->lines->map(fn (SaleLine $l) => [
                 'id' => $l->id,
@@ -45,12 +51,25 @@ class SaleResource extends JsonResource
                 'unit_price' => $l->unit_price,
                 'discount' => $l->discount,
                 'line_total' => $l->line_total,
-            ] + ($seesCosts ? ['unit_cost_snapshot' => $l->unit_cost_snapshot] : []))), // coût figé (marge) : propriétaire seulement
+            ]
+                // Quantité encore retournable (retours en cours ou validés déduits), si chargée.
+                + ($l->relationLoaded('activeReturnLines') ? ['returnable_quantity' => app(ReturnService::class)->returnable($l)] : [])
+                + ($seesCosts ? ['unit_cost_snapshot' => $l->unit_cost_snapshot] : []))), // coût figé (marge) : propriétaire seulement
             'payments' => $this->whenLoaded('payments', fn () => $this->payments->map(fn (SalePayment $p) => [
                 'id' => $p->id,
                 'method' => ['id' => $p->method->id, 'code' => $p->method->code, 'name' => $p->method->name],
                 'amount' => $p->amount,
                 'reference' => $p->reference,
+            ])),
+            'refunds' => $this->whenLoaded('refunds', fn () => $this->refunds->map(fn (Refund $r) => [
+                'id' => $r->id,
+                'method' => ['id' => $r->method->id, 'code' => $r->method->code, 'name' => $r->method->name],
+                'amount' => $r->amount,
+                'sale_return_id' => $r->sale_return_id,
+                'refunded_at' => $r->refunded_at->toIso8601String(),
+            ])),
+            'returns' => $this->whenLoaded('returns', fn () => $this->returns->map(fn (SaleReturn $r) => [
+                'id' => $r->id, 'reference' => $r->reference, 'status' => $r->status, 'total_value' => $r->total_value,
             ])),
         ];
     }
