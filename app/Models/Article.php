@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'reference', 'barcode', 'designation', 'category_id', 'brand', 'model', 'description', 'unit',
-    'purchase_price_reference', 'sale_price', 'alert_threshold', 'serial_tracking', 'active',
+    'allow_decimal_quantity', 'purchase_price_reference', 'sale_price', 'alert_threshold', 'serial_tracking', 'active',
 ])]
 class Article extends Model
 {
@@ -24,9 +24,12 @@ class Article extends Model
     protected function casts(): array
     {
         return [
+            'allow_decimal_quantity' => 'boolean',
             'purchase_price_reference' => 'decimal:2',
+            // Coût moyen pondéré : écrit uniquement par StockService.
+            'average_cost' => 'decimal:4',
             'sale_price' => 'decimal:2',
-            'alert_threshold' => 'integer',
+            'alert_threshold' => 'decimal:3',
             'serial_tracking' => 'boolean',
             'active' => 'boolean',
         ];

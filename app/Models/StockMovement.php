@@ -35,9 +35,9 @@ class StockMovement extends Model
     {
         return [
             'type' => MovementType::class,
-            'quantity' => 'integer',
-            'balance_after' => 'integer',
-            'unit_cost' => 'decimal:2',
+            'quantity' => 'decimal:3',
+            'balance_after' => 'decimal:3',
+            'unit_cost' => 'decimal:4',
         ];
     }
 

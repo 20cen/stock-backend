@@ -56,7 +56,7 @@ Authentification par jeton Sanctum : `Authorization: Bearer <token>`. Durée de 
 | PUT | `/api/v1/users/{id}` | `users.manage` |
 | GET | `/api/v1/stock/balances` (`article_id`, `location_id`, `search`, `low`) | `stock.view` |
 | GET | `/api/v1/stock/movements` (`article_id`, `location_id`, `type`, `from`, `to`) | `stock.view` |
-| POST | `/api/v1/stock/adjustments` (`article_id`, `location_id`, `quantity` signée, `reason`, `unit_cost`) | `stock.adjust` |
+| POST | `/api/v1/stock/adjustments` (`article_id`, `location_id`, `quantity` signée ≤ 3 décimales, `reason`, `unit_cost`) | `stock.adjust` |
 
 ## Organisation
 
@@ -70,3 +70,7 @@ Authentification par jeton Sanctum : `Authorization: Bearer <token>`. Durée de 
 - `stock_movements` — journal en ajout seul (quantité signée, solde après mouvement, document source) ; une erreur
   se corrige par un mouvement inverse. `stock_balances` — solde courant, `CHECK (quantity_on_hand >= 0)` sur PostgreSQL.
 - `app/Enums/MovementType.php` — types de mouvement ; chacun impose le signe de la quantité.
+- Quantités en `DECIMAL(14,3)` (chaînes côté PHP, calculs en bcmath via `app/Support/Decimal.php`). Un article
+  n'accepte des décimales que si `allow_decimal_quantity` est vrai (câble au mètre…).
+- Valorisation au **coût moyen pondéré** par article (`articles.average_cost`, 4 décimales) : recalculé à chaque entrée
+  valorisée ; sorties et transferts valorisés au CMP courant. Chaque mouvement garde son `unit_cost`.

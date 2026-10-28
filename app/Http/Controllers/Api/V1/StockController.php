@@ -99,7 +99,7 @@ class StockController extends Controller
                     (int) $data['article_id'],
                     (int) $data['location_id'],
                     MovementType::Adjustment,
-                    (int) $data['quantity'],
+                    (string) $data['quantity'],
                     isset($data['unit_cost']) ? (string) $data['unit_cost'] : null,
                 )],
                 $request->user(),

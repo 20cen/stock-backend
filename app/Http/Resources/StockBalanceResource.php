@@ -2,7 +2,9 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\Permission;
 use App\Models\StockBalance;
+use App\Support\Decimal;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -16,16 +18,25 @@ class StockBalanceResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $article = $this->article;
+        $seesCosts = (bool) $request->user()?->hasPermission(Permission::PricesManage);
+
         return [
             'id' => $this->id,
             'quantity_on_hand' => $this->quantity_on_hand,
-            'is_low' => $this->quantity_on_hand <= $this->article->alert_threshold,
+            'is_low' => bccomp($this->quantity_on_hand, $article->alert_threshold, Decimal::QUANTITY_SCALE) <= 0,
+            // Valorisation au coût moyen pondéré, réservée au propriétaire.
+            'average_cost' => $this->when($seesCosts, $article->average_cost),
+            'stock_value' => $this->when($seesCosts, fn () => $article->average_cost === null
+                ? null
+                : Decimal::round(bcmul($this->quantity_on_hand, $article->average_cost, 8), 2)),
             'article' => [
-                'id' => $this->article->id,
-                'reference' => $this->article->reference,
-                'designation' => $this->article->designation,
-                'unit' => $this->article->unit,
-                'alert_threshold' => $this->article->alert_threshold,
+                'id' => $article->id,
+                'reference' => $article->reference,
+                'designation' => $article->designation,
+                'unit' => $article->unit,
+                'allow_decimal_quantity' => $article->allow_decimal_quantity,
+                'alert_threshold' => $article->alert_threshold,
             ],
             'location' => [
                 'id' => $this->location->id,

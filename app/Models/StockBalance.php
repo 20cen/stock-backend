@@ -18,7 +18,7 @@ class StockBalance extends Model
     protected function casts(): array
     {
         return [
-            'quantity_on_hand' => 'integer',
+            'quantity_on_hand' => 'decimal:3',
         ];
     }
 

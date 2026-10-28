@@ -4,6 +4,7 @@ namespace App\Exceptions;
 
 use App\Models\Article;
 use App\Models\Location;
+use App\Support\Decimal;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -14,15 +15,15 @@ class InsufficientStockException extends StockException
     public function __construct(
         public readonly Article $article,
         public readonly Location $location,
-        public readonly int $available,
-        public readonly int $requested,
+        public readonly string $available,
+        public readonly string $requested,
     ) {
         parent::__construct(sprintf(
-            'Stock insuffisant pour « %s » (%s) : %d disponible(s), %d demandé(s).',
+            'Stock insuffisant pour « %s » (%s) : %s disponible(s), %s demandé(s).',
             $article->designation,
             $location->name,
-            $available,
-            $requested,
+            str_replace('.', ',', Decimal::trim($available)),
+            str_replace('.', ',', Decimal::trim($requested)),
         ));
     }
 

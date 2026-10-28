@@ -62,7 +62,7 @@ class StockConcurrencyTest extends TestCase
 
         sort($outputs);
         $this->assertSame(array_merge(['ok'], array_fill(0, self::SELLERS - 1, 'refused')), $outputs, implode("\n", $outputs));
-        $this->assertSame(0, StockBalance::sole()->quantity_on_hand);
+        $this->assertSame('0.000', StockBalance::sole()->quantity_on_hand);
         $this->assertSame(1, StockMovement::where('type', MovementType::Sale)->count());
     }
 

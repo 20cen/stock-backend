@@ -51,13 +51,26 @@ class StockApiTest extends TestCase
         $this->adjust()
             ->assertCreated()
             ->assertJsonPath('data.type', 'adjustment')
-            ->assertJsonPath('data.quantity', 10)
-            ->assertJsonPath('data.balance_after', 10)
-            ->assertJsonPath('data.unit_cost', '2500.50')
+            ->assertJsonPath('data.quantity', '10.000')
+            ->assertJsonPath('data.balance_after', '10.000')
+            ->assertJsonPath('data.unit_cost', '2500.5000')
             ->assertJsonPath('data.reason', 'Stock initial');
 
-        $this->assertSame(10, StockBalance::sole()->quantity_on_hand);
+        $this->assertSame('10.000', StockBalance::sole()->quantity_on_hand);
         $this->assertSame('Stock initial', AuditLog::where('action', 'stock.adjusted')->sole()->reason);
+
+        $this->getJson('/api/v1/stock/balances')
+            ->assertJsonPath('data.0.average_cost', '2500.5000')
+            ->assertJsonPath('data.0.stock_value', '25005.00');
+    }
+
+    public function test_a_decimal_quantity_is_refused_for_an_article_counted_in_units(): void
+    {
+        Sanctum::actingAs(User::factory()->owner()->create());
+
+        $this->adjust(['quantity' => 1.5])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'L’article « Souris USB » se compte en unités entières.');
     }
 
     public function test_an_adjustment_requires_a_reason_and_a_non_zero_quantity(): void
@@ -78,9 +91,9 @@ class StockApiTest extends TestCase
         $this->adjust(['quantity' => -5, 'reason' => 'Casse'])
             ->assertUnprocessable()
             ->assertJsonPath('message', 'Stock insuffisant pour « Souris USB » (Boutique) : 2 disponible(s), 5 demandé(s).')
-            ->assertJsonPath('stock.available', 2);
+            ->assertJsonPath('stock.available', '2.000');
 
-        $this->assertSame(2, StockBalance::sole()->quantity_on_hand);
+        $this->assertSame('2.000', StockBalance::sole()->quantity_on_hand);
     }
 
     public function test_cashier_can_view_stock_but_not_adjust_it_nor_see_costs(): void
@@ -94,9 +107,11 @@ class StockApiTest extends TestCase
 
         $this->getJson('/api/v1/stock/balances')
             ->assertOk()
-            ->assertJsonPath('data.0.quantity_on_hand', 2)
+            ->assertJsonPath('data.0.quantity_on_hand', '2.000')
             ->assertJsonPath('data.0.is_low', true)
-            ->assertJsonPath('data.0.location.code', 'BTQ');
+            ->assertJsonPath('data.0.location.code', 'BTQ')
+            ->assertJsonMissingPath('data.0.average_cost')
+            ->assertJsonMissingPath('data.0.stock_value');
 
         $this->getJson('/api/v1/stock/movements')
             ->assertOk()
