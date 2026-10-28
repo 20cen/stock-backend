@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\PurchaseController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\StockController;
 use App\Http\Controllers\Api\V1\SupplierController;
+use App\Http\Controllers\Api\V1\TransferController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Models\Location;
 use App\Models\PaymentMethod;
@@ -44,12 +45,15 @@ Route::prefix('v1')->group(function () {
         });
         Route::post('purchases/{purchase}/receipts', [PurchaseController::class, 'receive'])->middleware('can:receipts.validate');
 
+        Route::apiResource('transfers', TransferController::class)->only(['index', 'show', 'store'])->middleware('can:transfers.manage');
+
         Route::apiResource('suppliers', SupplierController::class)->except('destroy')->middleware('can:suppliers.manage');
         Route::apiResource('customers', CustomerController::class)->except('destroy')->middleware('can:customers.manage');
 
         Route::middleware('can:stock.view')->prefix('stock')->group(function () {
             Route::get('balances', [StockController::class, 'balances']);
             Route::get('movements', [StockController::class, 'movements']);
+            Route::get('summary', [StockController::class, 'summary']);
         });
         Route::post('stock/adjustments', [StockController::class, 'adjust'])->middleware('can:stock.adjust');
 

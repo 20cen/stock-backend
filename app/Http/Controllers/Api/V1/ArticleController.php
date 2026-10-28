@@ -35,6 +35,7 @@ class ArticleController extends Controller
             'category_id' => ['nullable', 'integer'],
             'status' => ['nullable', 'in:active,inactive,all'],
             'low' => ['nullable', 'boolean'],
+            'out' => ['nullable', 'boolean'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -54,6 +55,10 @@ class ArticleController extends Controller
             // Stock total (tous emplacements) inférieur ou égal au seuil d'alerte.
             ->when($request->boolean('low'), fn (Builder $q) => $q->whereRaw(
                 '(SELECT COALESCE(SUM(quantity_on_hand), 0) FROM stock_balances WHERE stock_balances.article_id = articles.id) <= articles.alert_threshold'
+            ))
+            // Rupture : plus aucun stock, tous emplacements confondus.
+            ->when($request->boolean('out'), fn (Builder $q) => $q->whereRaw(
+                '(SELECT COALESCE(SUM(quantity_on_hand), 0) FROM stock_balances WHERE stock_balances.article_id = articles.id) <= 0'
             ))
             ->orderBy('designation')
             ->orderBy('id')

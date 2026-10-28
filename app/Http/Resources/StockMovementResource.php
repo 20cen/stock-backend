@@ -6,6 +6,7 @@ use App\Enums\Permission;
 use App\Models\StockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Str;
 
 /**
  * @mixin StockMovement
@@ -36,7 +37,12 @@ class StockMovementResource extends JsonResource
                 'code' => $this->location->code,
                 'name' => $this->location->name,
             ]),
-            'source' => $this->source_type ? ['type' => $this->source_type, 'id' => $this->source_id] : null,
+            // Document à l'origine du mouvement (réception, transfert…), avec sa référence lisible.
+            'source' => $this->source_type ? [
+                'type' => Str::snake(class_basename($this->source_type)),
+                'id' => $this->source_id,
+                'reference' => $this->relationLoaded('source') ? $this->source?->getAttribute('reference') : null,
+            ] : null,
             'reason' => $this->reason,
             'created_by' => $this->whenLoaded('creator', fn () => [
                 'id' => $this->creator->id,

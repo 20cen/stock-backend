@@ -65,6 +65,8 @@ Authentification par jeton Sanctum : `Authorization: Bearer <token>`. Durée de 
 | GET, POST, PUT | `/api/v1/purchases` (`search`, `status`, `supplier_id`, `unpaid`, `from`, `to`) — PUT sur brouillon seulement ; `confirm: true` valide | `purchases.manage` |
 | POST | `/api/v1/purchases/{id}/confirm`, `/cancel` (`reason`), `/payments` (`amount`, `payment_method_id`) | `purchases.manage` |
 | POST | `/api/v1/purchases/{id}/receipts` (`location_id`, `lines[]` : `purchase_line_id`, `quantity`) — entrée en stock | `receipts.validate` |
+| GET, POST | `/api/v1/transfers` (`search`, `location_id`, `from`, `to`) — validation immédiate, pas de modification | `transfers.manage` |
+| GET | `/api/v1/stock/summary` — articles, ruptures, stock faible ; valeur au CMP si `prices.manage` | `stock.view` |
 | GET | `/api/v1/stock/balances` (`article_id`, `location_id`, `search`, `low`) | `stock.view` |
 | GET | `/api/v1/stock/movements` (`article_id`, `location_id`, `type`, `from`, `to`) | `stock.view` |
 | POST | `/api/v1/stock/adjustments` (`article_id`, `location_id`, `quantity` signée ≤ 3 décimales, `reason`, `unit_cost`) | `stock.adjust` |
