@@ -62,6 +62,7 @@ Authentification par jeton Sanctum : `Authorization: Bearer <token>`. Durée de 
 | GET, POST, PUT | `/api/v1/suppliers` (`search`, `status`) — pas de suppression | `suppliers.manage` |
 | GET, POST, PUT | `/api/v1/customers` (`search`, `status`) — pas de suppression | `customers.manage` |
 | GET | `/api/v1/dashboard` (`period` = today·7d·month·custom, `from`, `to`) — financier si `reports.financial`, sinon ventes du jour | `dashboard.view` |
+| GET | `/api/v1/reports` (catalogue + listes de filtres), `/api/v1/reports/{clé}` (`from`, `to`, `category_id`, `location_id`, `cashier_id`, `supplier_id`, `expense_category_id`, `format` = json·xlsx·pdf) | `reports.financial` |
 | GET | `/api/v1/payment-methods`, `/api/v1/locations` | connecté |
 | GET, POST, PUT | `/api/v1/purchases` (`search`, `status`, `supplier_id`, `unpaid`, `from`, `to`) — PUT sur brouillon seulement ; `confirm: true` valide | `purchases.manage` |
 | POST | `/api/v1/purchases/{id}/confirm`, `/cancel` (`reason`), `/payments` (`amount`, `payment_method_id`) | `purchases.manage` |

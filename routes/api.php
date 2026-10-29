@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\ExpenseController;
 use App\Http\Controllers\Api\V1\InventoryController;
 use App\Http\Controllers\Api\V1\LossController;
 use App\Http\Controllers\Api\V1\PurchaseController;
+use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SaleController;
 use App\Http\Controllers\Api\V1\SaleReturnController;
@@ -42,6 +43,10 @@ Route::prefix('v1')->group(function () {
         });
 
         Route::get('dashboard', DashboardController::class)->middleware('can:dashboard.view');
+        Route::middleware('can:reports.financial')->group(function () {
+            Route::get('reports', [ReportController::class, 'index']);
+            Route::get('reports/{key}', [ReportController::class, 'show'])->where('key', '[a-z_]+');
+        });
         Route::get('payment-methods', fn () => ['data' => PaymentMethod::where('active', true)->orderBy('id')->get(['id', 'code', 'name'])]);
         Route::get('locations', fn () => ['data' => Location::activeInOrder()->map->only(['id', 'code', 'name', 'type', 'is_sellable'])->values()]);
 

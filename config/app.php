@@ -15,6 +15,9 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
 
+    // Nom de la boutique affiché en tête des rapports exportés.
+    'shop_name' => env('SHOP_NAME', 'EMPIL'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment
