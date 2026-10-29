@@ -94,6 +94,10 @@ say "7/7 Mise en cache"
 "$PHP" artisan route:cache
 "$PHP" artisan view:cache
 
+say "Publication sur le sous-domaine"
+read -rp "Dossier du sous-domaine de l'API [$HOME/public_html/stockbackend] : " DOCROOT; DOCROOT="${DOCROOT:-$HOME/public_html/stockbackend}"
+bash deploy/publish.sh "$DOCROOT"
+
 say "Installation terminée."
 echo "Connexion : identifiant « proprietaire » et le mot de passe choisi (ou celui affiché à l'étape 6 s'il était aléatoire)."
 echo "Vérification : ouvrez $(grep -E '^APP_URL=' .env | cut -d= -f2- | tr -d '"')/up dans un navigateur (page « Application up »)."
