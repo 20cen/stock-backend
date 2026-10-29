@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
 use App\Http\Resources\UserResource;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
@@ -40,6 +41,7 @@ class AuthController extends Controller
             'token' => $token,
             'user' => new UserResource($user),
             'permissions' => $user->permissionCodes(),
+            'shop' => Setting::shop(),
         ]);
     }
 
@@ -50,6 +52,7 @@ class AuthController extends Controller
         return response()->json([
             'user' => new UserResource($user),
             'permissions' => $user->permissionCodes(),
+            'shop' => Setting::shop(),
         ]);
     }
 

@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SaleController;
 use App\Http\Controllers\Api\V1\SaleReturnController;
+use App\Http\Controllers\Api\V1\SettingController;
 use App\Http\Controllers\Api\V1\StockController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\TransferController;
@@ -43,6 +44,12 @@ Route::prefix('v1')->group(function () {
         });
 
         Route::get('dashboard', DashboardController::class)->middleware('can:dashboard.view');
+        Route::middleware('can:settings.manage')->group(function () {
+            Route::get('settings', [SettingController::class, 'index']);
+            Route::put('settings', [SettingController::class, 'update']);
+            Route::post('settings/payment-methods', [SettingController::class, 'storeMethod']);
+            Route::put('settings/payment-methods/{method}', [SettingController::class, 'updateMethod']);
+        });
         Route::middleware('can:reports.financial')->group(function () {
             Route::get('reports', [ReportController::class, 'index']);
             Route::get('reports/{key}', [ReportController::class, 'show'])->where('key', '[a-z_]+');

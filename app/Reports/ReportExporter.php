@@ -2,6 +2,7 @@
 
 namespace App\Reports;
 
+use App\Models\Setting;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -193,6 +194,6 @@ class ReportExporter
 
     private function shopName(): string
     {
-        return (string) config('app.shop_name', 'EMPIL');
+        return (string) Setting::get(Setting::SHOP_NAME);
     }
 }

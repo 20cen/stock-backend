@@ -27,11 +27,22 @@ class Setting extends Model
      */
     public const LOSS_AUTO_VALIDATE_LIMIT = 'losses.auto_validate_limit';
 
+    /** Nom de la boutique (reçus, exports). */
+    public const SHOP_NAME = 'shop.name';
+
+    /** Lignes sous le nom sur les reçus : activité, adresse, téléphone, identifiant fiscal… */
+    public const SHOP_LINES = 'shop.header_lines';
+
+    /** Message en bas des reçus. */
+    public const RECEIPT_FOOTER = 'shop.receipt_footer';
+
     private const DEFAULTS = [
         self::CASHIER_DISCOUNT_LIMIT => '5',
         self::ALLOW_CREDIT => false,
         self::RETURN_DAYS => 7,
         self::LOSS_AUTO_VALIDATE_LIMIT => '0',
+        self::SHOP_LINES => ['Matériel informatique & fournitures de bureau'],
+        self::RECEIPT_FOOTER => 'Merci de votre visite !',
     ];
 
     /**
@@ -48,7 +59,25 @@ class Setting extends Model
     {
         $setting = self::where('key', $key)->first();
 
-        return $setting ? $setting->value : (self::DEFAULTS[$key] ?? null);
+        if ($setting) {
+            return $setting->value;
+        }
+
+        return $key === self::SHOP_NAME ? config('app.shop_name', 'EMPIL') : (self::DEFAULTS[$key] ?? null);
+    }
+
+    /**
+     * Identité de la boutique, transmise à l'application à la connexion (en-tête des reçus).
+     *
+     * @return array{name: string, lines: list<string>, footer: string}
+     */
+    public static function shop(): array
+    {
+        return [
+            'name' => (string) self::get(self::SHOP_NAME),
+            'lines' => array_values((array) self::get(self::SHOP_LINES)),
+            'footer' => (string) self::get(self::RECEIPT_FOOTER),
+        ];
     }
 
     public static function put(string $key, mixed $value, ?int $userId = null): void
