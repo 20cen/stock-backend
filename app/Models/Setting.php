@@ -21,10 +21,17 @@ class Setting extends Model
     /** Délai de retour en jours après la vente ; au-delà, seul un responsable (returns.validate) l'accepte. */
     public const RETURN_DAYS = 'returns.max_days';
 
+    /**
+     * Valeur (au CMP) jusqu'à laquelle une perte déclarée est validée directement ;
+     * au-delà, approbation du propriétaire (RG-PER-02). 0 : toutes les pertes sont soumises.
+     */
+    public const LOSS_AUTO_VALIDATE_LIMIT = 'losses.auto_validate_limit';
+
     private const DEFAULTS = [
         self::CASHIER_DISCOUNT_LIMIT => '5',
         self::ALLOW_CREDIT => false,
         self::RETURN_DAYS => 7,
+        self::LOSS_AUTO_VALIDATE_LIMIT => '0',
     ];
 
     /**

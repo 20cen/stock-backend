@@ -5,6 +5,8 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CashSessionController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\InventoryController;
+use App\Http\Controllers\Api\V1\LossController;
 use App\Http\Controllers\Api\V1\PurchaseController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SaleController;
@@ -79,6 +81,25 @@ Route::prefix('v1')->group(function () {
             Route::post('returns/{saleReturn}/validate', [SaleReturnController::class, 'validateReturn']);
             Route::post('returns/{saleReturn}/reject', [SaleReturnController::class, 'reject']);
             Route::post('returns/{saleReturn}/refunds', [SaleReturnController::class, 'refund']);
+        });
+
+        // Pertes et inventaires
+        Route::middleware('can:losses.declare')->group(function () {
+            Route::get('losses/reasons', [LossController::class, 'reasons']);
+            Route::get('losses', [LossController::class, 'index']);
+            Route::post('losses', [LossController::class, 'store']);
+        });
+        Route::middleware('can:losses.validate')->group(function () {
+            Route::post('losses/{loss}/validate', [LossController::class, 'validateLoss']);
+            Route::post('losses/{loss}/reject', [LossController::class, 'reject']);
+        });
+        Route::middleware('can:inventories.manage')->group(function () {
+            Route::get('inventories', [InventoryController::class, 'index']);
+            Route::get('inventories/{inventory}', [InventoryController::class, 'show']);
+            Route::post('inventories', [InventoryController::class, 'store']);
+            Route::put('inventories/{inventory}/counts', [InventoryController::class, 'counts']);
+            Route::post('inventories/{inventory}/validate', [InventoryController::class, 'validateInventory']);
+            Route::post('inventories/{inventory}/cancel', [InventoryController::class, 'cancel']);
         });
 
         Route::apiResource('transfers', TransferController::class)->only(['index', 'show', 'store'])->middleware('can:transfers.manage');

@@ -74,6 +74,10 @@ Authentification par jeton Sanctum : `Authorization: Bearer <token>`. Durée de 
 | GET | `/api/v1/returns`, `/api/v1/returns/{id}`, `/api/v1/returns/sale?reference=VTE-…` | `returns.request` |
 | POST | `/api/v1/returns` (`sale_id`, `reason`, `lines[]` : `sale_line_id`, `quantity`, `condition` good·damaged) | `returns.request` |
 | POST | `/api/v1/returns/{id}/validate` (`destinations`, `refund`), `/reject` (`reason`), `/refunds` (`amount`, `payment_method_id`) | `returns.validate` |
+| GET, POST | `/api/v1/losses` (`article_id`, `location_id`, `quantity`, `reason`, `comment`), `GET /losses/reasons` | `losses.declare` |
+| POST | `/api/v1/losses/{id}/validate`, `/reject` (`reason`) | `losses.validate` |
+| GET, POST | `/api/v1/inventories` (`location_id`, `category_id`), `GET /inventories/{id}` | `inventories.manage` |
+| PUT, POST | `/api/v1/inventories/{id}/counts` (`lines[]` : `article_id`, `counted_quantity`, `reason`), `/validate`, `/cancel` | `inventories.manage` |
 | GET, POST | `/api/v1/transfers` (`search`, `location_id`, `from`, `to`) — validation immédiate, pas de modification | `transfers.manage` |
 | GET | `/api/v1/stock/summary` — articles, ruptures, stock faible ; valeur au CMP si `prices.manage` | `stock.view` |
 | GET | `/api/v1/stock/balances` (`article_id`, `location_id`, `search`, `low`) | `stock.view` |
@@ -103,6 +107,10 @@ Authentification par jeton Sanctum : `Authorization: Bearer <token>`. Durée de 
 - `app/Services/ReturnService.php` — retours : demande sans effet sur le stock, validation qui fixe la destination
   (endommagé → emplacement « défectueux » uniquement), quantité retournable = vendue − retours en cours/validés,
   délai `returns.max_days` (7 j) ; remboursement distinct, plafonné au payé, sorti de la caisse de celui qui rembourse.
+- `app/Services/LossService.php` — pertes motivées ; sortie de stock à la validation ; validation directe pour un
+  responsable ou sous le seuil `losses.auto_validate_limit` (0 par défaut : toutes soumises).
+- `app/Services/InventoryService.php` — inventaire par emplacement (un seul en cours) : théorique figé à l'ouverture,
+  comptages sans effet, validation = mouvements « écart d'inventaire » (compté − théorique figé), non comptés ignorés.
 - `app/Services/DocumentNumber.php` — numéros annuels sans trou (`ACH-2026-00001`, `REC-2026-00001`).
 - `app/Exceptions/BusinessException.php` — règle de gestion non respectée → 422 avec message en français.
 - Quantités en `DECIMAL(14,3)` (chaînes côté PHP, calculs en bcmath via `app/Support/Decimal.php`). Un article
