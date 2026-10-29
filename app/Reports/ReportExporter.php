@@ -3,8 +3,7 @@
 namespace App\Reports;
 
 use App\Models\Setting;
-use Dompdf\Dompdf;
-use Dompdf\Options;
+use App\Support\PdfRenderer;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
@@ -27,6 +26,8 @@ class ReportExporter
         'percent' => '0.0%',
         'date' => 'dd/mm/yyyy',
     ];
+
+    public function __construct(private readonly PdfRenderer $pdf) {}
 
     public function filename(Report $report, string $extension): string
     {
@@ -117,27 +118,11 @@ class ReportExporter
 
     public function pdf(Report $report): string
     {
-        $options = new Options;
-        $options->setDefaultFont('DejaVu Sans');
-        $options->setIsRemoteEnabled(false);
-        $options->setFontCache(storage_path('framework/cache'));
-        $options->setTempDir(sys_get_temp_dir());
-
-        $dompdf = new Dompdf($options);
-        $dompdf->loadHtml(view('reports.pdf', [
+        return $this->pdf->render('reports.pdf', [
             'report' => $report,
             'shop' => $this->shopName(),
             'cell' => fn (array $column, mixed $value) => $this->display($column['type'], $value),
-            'editedAt' => now()->format('d/m/Y à H:i'),
-        ])->render());
-        $dompdf->setPaper('A4', count($report->columns) > 6 ? 'landscape' : 'portrait');
-        $dompdf->render();
-
-        $canvas = $dompdf->getCanvas();
-        $font = $dompdf->getFontMetrics()->getFont('DejaVu Sans');
-        $canvas->page_text($canvas->get_width() - 110, $canvas->get_height() - 23, 'Page {PAGE_NUM} / {PAGE_COUNT}', $font, 7, [0.39, 0.45, 0.55]);
-
-        return (string) $dompdf->output();
+        ], count($report->columns) > 6 ? 'landscape' : 'portrait');
     }
 
     /**

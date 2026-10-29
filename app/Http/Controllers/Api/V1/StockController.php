@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreStockAdjustmentRequest;
 use App\Http\Resources\StockBalanceResource;
 use App\Http\Resources\StockMovementResource;
+use App\Models\Article;
 use App\Models\Location;
 use App\Models\StockBalance;
 use App\Models\StockMovement;
@@ -22,6 +23,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class StockController extends Controller
 {
@@ -151,6 +153,14 @@ class StockController extends Controller
     public function adjust(StoreStockAdjustmentRequest $request): JsonResponse
     {
         $data = $request->validated();
+
+        // Une entrée sans coût sur un article sans coût connu fausserait la valeur du stock et la marge.
+        if (bccomp((string) $data['quantity'], '0', 3) > 0 && ! isset($data['unit_cost'])
+            && Article::whereKey($data['article_id'])->value('average_cost') === null) {
+            throw ValidationException::withMessages([
+                'unit_cost' => 'Indiquez le coût unitaire (prix d’achat) : cet article n’a pas encore de coût connu.',
+            ]);
+        }
 
         $movement = DB::transaction(function () use ($request, $data) {
             $movement = $this->stock->apply(

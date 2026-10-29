@@ -9,12 +9,18 @@ use App\Http\Requests\PurchaseRequest;
 use App\Http\Requests\ReceiptRequest;
 use App\Http\Resources\PurchaseResource;
 use App\Models\Purchase;
+use App\Models\PurchasePayment;
+use App\Models\Receipt;
+use App\Models\ReceiptLine;
 use App\Services\PurchaseService;
+use App\Support\Decimal;
+use App\Support\PdfRenderer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Acquisitions, réceptions et paiements fournisseurs. Les règles sont dans PurchaseService.
@@ -109,5 +115,77 @@ class PurchaseController extends Controller
         $this->purchases->addPayment($purchase, $request->validated(), $request->user());
 
         return (new PurchaseResource($purchase->refresh()->load(self::DETAIL)))->response()->setStatusCode(201);
+    }
+
+    /**
+     * Bon de réception PDF : quantités commandées, reçues ce jour, cumulées à cette réception et restantes.
+     */
+    public function receiptPdf(Purchase $purchase, Receipt $receipt, PdfRenderer $pdf): Response
+    {
+        abort_unless($receipt->purchase_id === $purchase->id, 404);
+        $purchase->load(['supplier', 'lines.article']);
+        $receipt->load(['location', 'receiver', 'lines']);
+
+        // Cumul reçu jusqu'à cette réception incluse (les réceptions suivantes ne comptent pas).
+        $cumulative = ReceiptLine::whereIn('receipt_id', Receipt::where('purchase_id', $purchase->id)->where('id', '<=', $receipt->id)->select('id'))
+            ->groupBy('purchase_line_id')->selectRaw('purchase_line_id, SUM(quantity) AS q')->pluck('q', 'purchase_line_id');
+
+        $lines = $receipt->lines->map(function (ReceiptLine $l) use ($purchase, $cumulative) {
+            $line = $purchase->lines->firstWhere('id', $l->purchase_line_id);
+            $received = (string) ($cumulative[$l->purchase_line_id] ?? '0');
+
+            return [
+                'reference' => $line->article->reference,
+                'designation' => $line->article->designation,
+                'unit' => $line->article->unit,
+                'ordered' => $line->quantity_ordered,
+                'received' => $l->quantity,
+                'cumulative' => $received,
+                'remaining' => bccomp($line->quantity_ordered, $received, 3) > 0 ? bcsub($line->quantity_ordered, $received, 3) : '0',
+            ];
+        })->all();
+
+        $content = $pdf->render('documents.receipt', [
+            'purchase' => $purchase,
+            'receipt' => $receipt,
+            'lines' => $lines,
+            'complete' => $purchase->lines->every(fn ($pl) => bccomp((string) ($cumulative[$pl->id] ?? '0'), $pl->quantity_ordered, 3) >= 0),
+        ]);
+
+        return $this->pdfResponse($content, "bon-reception-{$receipt->reference}.pdf");
+    }
+
+    /**
+     * Reçu de paiement fournisseur PDF, avec le solde restant juste après ce paiement.
+     */
+    public function paymentPdf(Purchase $purchase, PurchasePayment $payment, PdfRenderer $pdf): Response
+    {
+        abort_unless($payment->purchase_id === $purchase->id, 404);
+        $purchase->load('supplier');
+        $payment->load(['method', 'creator']);
+
+        $previous = PurchasePayment::where('purchase_id', $purchase->id)->where('id', '<', $payment->id);
+        $paidBefore = Decimal::round((string) ((clone $previous)->sum('amount') ?: '0'), 2);
+        // Numéro lisible : ACH-2026-00001 / P2 pour le 2e paiement de l'acquisition.
+        $number = "{$purchase->reference} / P".($previous->count() + 1);
+
+        $content = $pdf->render('documents.payment', [
+            'purchase' => $purchase,
+            'payment' => $payment,
+            'number' => $number,
+            'paidBefore' => $paidBefore,
+            'balanceAfter' => bcsub(bcsub($purchase->total, $paidBefore, 2), $payment->amount, 2),
+        ]);
+
+        return $this->pdfResponse($content, 'recu-paiement-'.str_replace(' / ', '-', $number).'.pdf');
+    }
+
+    private function pdfResponse(string $content, string $filename): Response
+    {
+        return response($content, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            'Content-Length' => (string) strlen($content),
+        ]);
     }
 }

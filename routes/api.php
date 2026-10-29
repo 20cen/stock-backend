@@ -62,6 +62,8 @@ Route::prefix('v1')->group(function () {
             Route::post('purchases/{purchase}/confirm', [PurchaseController::class, 'confirm']);
             Route::post('purchases/{purchase}/cancel', [PurchaseController::class, 'cancel']);
             Route::post('purchases/{purchase}/payments', [PurchaseController::class, 'pay']);
+            Route::get('purchases/{purchase}/payments/{payment}/pdf', [PurchaseController::class, 'paymentPdf']);
+            Route::get('purchases/{purchase}/receipts/{receipt}/pdf', [PurchaseController::class, 'receiptPdf']);
         });
         Route::post('purchases/{purchase}/receipts', [PurchaseController::class, 'receive'])->middleware('can:receipts.validate');
 
