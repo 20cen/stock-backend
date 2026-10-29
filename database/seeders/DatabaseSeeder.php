@@ -26,7 +26,8 @@ class DatabaseSeeder extends Seeder
             return;
         }
 
-        $password = env('INITIAL_OWNER_PASSWORD') ?: Str::password(16, symbols: false);
+        $chosen = (string) env('INITIAL_OWNER_PASSWORD');
+        $password = $chosen ?: Str::password(16, symbols: false);
 
         User::create([
             'name' => 'Propriétaire',
@@ -35,6 +36,9 @@ class DatabaseSeeder extends Seeder
             'role_id' => Role::where('code', RoleCode::Owner->value)->value('id'),
         ]);
 
-        $this->command?->warn("Compte propriétaire créé : {$username} / {$password} — changez ce mot de passe après la première connexion.");
+        // Un mot de passe choisi n'est pas réaffiché ; un mot de passe aléatoire doit l'être, une seule fois.
+        $this->command?->warn($chosen
+            ? "Compte propriétaire créé : {$username} (mot de passe choisi)."
+            : "Compte propriétaire créé : {$username} / {$password} — changez ce mot de passe après la première connexion.");
     }
 }
