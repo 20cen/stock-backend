@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CashSessionController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\ExpenseController;
 use App\Http\Controllers\Api\V1\InventoryController;
 use App\Http\Controllers\Api\V1\LossController;
@@ -40,6 +41,7 @@ Route::prefix('v1')->group(function () {
             Route::put('articles/{article}', [ArticleController::class, 'update']);
         });
 
+        Route::get('dashboard', DashboardController::class)->middleware('can:dashboard.view');
         Route::get('payment-methods', fn () => ['data' => PaymentMethod::where('active', true)->orderBy('id')->get(['id', 'code', 'name'])]);
         Route::get('locations', fn () => ['data' => Location::activeInOrder()->map->only(['id', 'code', 'name', 'type', 'is_sellable'])->values()]);
 
