@@ -14,6 +14,12 @@ say() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 fail() { printf '\n\033[31mÉchec : %s\033[0m\n' "$1" >&2; exit 1; }
 
 say "1/7 Vérification de PHP"
+# Le projet ne doit jamais être sous public_html : .env (mot de passe de la base) serait téléchargeable.
+case "$(pwd -P)" in
+  */public_html/*) fail "le projet est dans un dossier publié sur le web ($(pwd -P)).
+Déplacez-le dans votre dossier personnel (ex. ~/stock-backend) et reliez seulement son dossier public au sous-domaine :
+voir le guide de déploiement, étape 2." ;;
+esac
 "$PHP" -r 'exit(version_compare(PHP_VERSION, "8.3.0", ">=") ? 0 : 1);' \
   || fail "PHP 8.3 ou plus est requis (version actuelle : $("$PHP" -r 'echo PHP_VERSION;')).
 Dans cPanel > « Sélectionner une version de PHP », choisissez 8.3 ou 8.4, puis relancez.
@@ -21,7 +27,9 @@ Si le Terminal reste sur une ancienne version : PHP=/opt/alt/php83/usr/bin/php b
 echo "PHP $("$PHP" -r 'echo PHP_VERSION;')"
 
 missing=""
-for ext in pdo_pgsql bcmath mbstring dom xml xmlreader xmlwriter simplexml gd zip fileinfo iconv ctype openssl tokenizer curl; do
+# Pas de curl : l'application ne fait aucun appel sortant et Composer s'en passe (le PHP du Terminal
+# cPanel n'a pas toujours les mêmes extensions que celui du site).
+for ext in pdo_pgsql bcmath mbstring dom xml xmlreader xmlwriter simplexml gd zip fileinfo iconv ctype openssl tokenizer; do
   "$PHP" -m | grep -qix "$ext" || missing="$missing $ext"
 done
 [ -z "$missing" ] || fail "extensions PHP manquantes :$missing
