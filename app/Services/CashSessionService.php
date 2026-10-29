@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\BusinessException;
 use App\Models\CashSession;
+use App\Models\Expense;
 use App\Models\PaymentMethod;
 use App\Models\Refund;
 use App\Models\SalePayment;
@@ -69,27 +70,24 @@ class CashSessionService
      */
     public function totals(CashSession $session): array
     {
-        $sums = SalePayment::where('cash_session_id', $session->id)
-            ->groupBy('payment_method_id')
-            ->selectRaw('payment_method_id, SUM(amount) AS total')
-            ->pluck('total', 'payment_method_id');
-        // Les remboursements faits depuis cette caisse viennent en déduction.
-        $refunds = Refund::where('cash_session_id', $session->id)
+        $byMethod = fn ($query) => $query->where('cash_session_id', $session->id)
             ->groupBy('payment_method_id')
             ->selectRaw('payment_method_id, SUM(amount) AS total')
             ->pluck('total', 'payment_method_id');
 
+        $in = $byMethod(SalePayment::query());
+        // Sorties d'argent de cette caisse : remboursements et dépenses payées depuis le tiroir.
+        $refunds = $byMethod(Refund::query());
+        $expenses = $byMethod(Expense::where('status', Expense::RECORDED));
+        $money = fn ($set, int $id) => Decimal::round((string) ($set[$id] ?? '0'), 2);
+
         $methods = PaymentMethod::orderBy('id')->get()
-            ->filter(fn (PaymentMethod $m) => $m->active || isset($sums[$m->id]) || isset($refunds[$m->id]))
+            ->filter(fn (PaymentMethod $m) => $m->active || isset($in[$m->id]) || isset($refunds[$m->id]) || isset($expenses[$m->id]))
             ->map(fn (PaymentMethod $m) => [
                 'payment_method_id' => $m->id,
                 'code' => $m->code,
                 'name' => $m->name,
-                'amount' => bcsub(
-                    Decimal::round((string) ($sums[$m->id] ?? '0'), 2),
-                    Decimal::round((string) ($refunds[$m->id] ?? '0'), 2),
-                    2,
-                ),
+                'amount' => bcsub(bcsub($money($in, $m->id), $money($refunds, $m->id), 2), $money($expenses, $m->id), 2),
             ])->values()->all();
 
         $cash = collect($methods)->firstWhere('code', self::CASH)['amount'] ?? '0.00';

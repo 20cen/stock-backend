@@ -78,6 +78,9 @@ Authentification par jeton Sanctum : `Authorization: Bearer <token>`. Durée de 
 | POST | `/api/v1/losses/{id}/validate`, `/reject` (`reason`) | `losses.validate` |
 | GET, POST | `/api/v1/inventories` (`location_id`, `category_id`), `GET /inventories/{id}` | `inventories.manage` |
 | PUT, POST | `/api/v1/inventories/{id}/counts` (`lines[]` : `article_id`, `counted_quantity`, `reason`), `/validate`, `/cancel` | `inventories.manage` |
+| GET, POST, PUT | `/api/v1/expense-categories` | `expenses.manage` |
+| GET, POST | `/api/v1/expenses` (`from`, `to`, `category_id`, `status`, `search` ; renvoie `total_amount`) — POST en multipart avec `attachment` | `expenses.manage` |
+| PUT, POST, GET | `/api/v1/expenses/{id}` (sans montant ni mode), `/attachment` (envoi / téléchargement), `/cancel` (`reason`) | `expenses.manage` |
 | GET, POST | `/api/v1/transfers` (`search`, `location_id`, `from`, `to`) — validation immédiate, pas de modification | `transfers.manage` |
 | GET | `/api/v1/stock/summary` — articles, ruptures, stock faible ; valeur au CMP si `prices.manage` | `stock.view` |
 | GET | `/api/v1/stock/balances` (`article_id`, `location_id`, `search`, `low`) | `stock.view` |
@@ -111,6 +114,9 @@ Authentification par jeton Sanctum : `Authorization: Bearer <token>`. Durée de 
   responsable ou sous le seuil `losses.auto_validate_limit` (0 par défaut : toutes soumises).
 - `app/Services/InventoryService.php` — inventaire par emplacement (un seul en cours) : théorique figé à l'ouverture,
   comptages sans effet, validation = mouvements « écart d'inventaire » (compté − théorique figé), non comptés ignorés.
+- `app/Services/ExpenseService.php` — dépenses (catégorie obligatoire), justificatif sur le disque `local` (privé),
+  sortie du tiroir-caisse déduite des espèces attendues ; correction des champs descriptifs tracée, montant et mode
+  non modifiables (annuler puis ressaisir).
 - `app/Services/DocumentNumber.php` — numéros annuels sans trou (`ACH-2026-00001`, `REC-2026-00001`).
 - `app/Exceptions/BusinessException.php` — règle de gestion non respectée → 422 avec message en français.
 - Quantités en `DECIMAL(14,3)` (chaînes côté PHP, calculs en bcmath via `app/Support/Decimal.php`). Un article

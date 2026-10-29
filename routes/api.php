@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CashSessionController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\ExpenseController;
 use App\Http\Controllers\Api\V1\InventoryController;
 use App\Http\Controllers\Api\V1\LossController;
 use App\Http\Controllers\Api\V1\PurchaseController;
@@ -100,6 +101,20 @@ Route::prefix('v1')->group(function () {
             Route::put('inventories/{inventory}/counts', [InventoryController::class, 'counts']);
             Route::post('inventories/{inventory}/validate', [InventoryController::class, 'validateInventory']);
             Route::post('inventories/{inventory}/cancel', [InventoryController::class, 'cancel']);
+        });
+
+        // Dépenses
+        Route::middleware('can:expenses.manage')->group(function () {
+            Route::get('expense-categories', [ExpenseController::class, 'categories']);
+            Route::post('expense-categories', [ExpenseController::class, 'storeCategory']);
+            Route::put('expense-categories/{category}', [ExpenseController::class, 'updateCategory']);
+            Route::get('expenses', [ExpenseController::class, 'index']);
+            Route::post('expenses', [ExpenseController::class, 'store']);
+            Route::get('expenses/{expense}', [ExpenseController::class, 'show']);
+            Route::put('expenses/{expense}', [ExpenseController::class, 'update']);
+            Route::post('expenses/{expense}/attachment', [ExpenseController::class, 'attach']);
+            Route::get('expenses/{expense}/attachment', [ExpenseController::class, 'attachment']);
+            Route::post('expenses/{expense}/cancel', [ExpenseController::class, 'cancel']);
         });
 
         Route::apiResource('transfers', TransferController::class)->only(['index', 'show', 'store'])->middleware('can:transfers.manage');

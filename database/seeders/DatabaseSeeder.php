@@ -18,7 +18,7 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([RolePermissionSeeder::class, LocationSeeder::class, PaymentMethodSeeder::class]);
+        $this->call([RolePermissionSeeder::class, LocationSeeder::class, PaymentMethodSeeder::class, ExpenseCategorySeeder::class]);
 
         $username = env('INITIAL_OWNER_USERNAME', 'proprietaire');
 
