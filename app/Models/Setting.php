@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Paramètres de l'application (clé → valeur JSON). Les règles encore à valider avec le client
@@ -36,6 +37,19 @@ class Setting extends Model
     /** Message en bas des reçus. */
     public const RECEIPT_FOOTER = 'shop.receipt_footer';
 
+    /** Couleur principale de l'interface (boutons, liens, sélection), « #rrggbb ». */
+    public const BRAND_PRIMARY = 'brand.primary_color';
+
+    /** Couleur foncée : menu latéral, fond du pictogramme, en-têtes des documents PDF. */
+    public const BRAND_DARK = 'brand.dark_color';
+
+    /** Logo déposé : {path, mime, version} sur le disque « local », ou null (pictogramme par défaut). */
+    public const BRAND_LOGO = 'brand.logo';
+
+    public const DEFAULT_PRIMARY = '#4f46e5';
+
+    public const DEFAULT_DARK = '#111833';
+
     private const DEFAULTS = [
         self::CASHIER_DISCOUNT_LIMIT => '5',
         self::ALLOW_CREDIT => false,
@@ -43,6 +57,9 @@ class Setting extends Model
         self::LOSS_AUTO_VALIDATE_LIMIT => '0',
         self::SHOP_LINES => ['Matériel informatique & fournitures de bureau'],
         self::RECEIPT_FOOTER => 'Merci de votre visite !',
+        self::BRAND_PRIMARY => self::DEFAULT_PRIMARY,
+        self::BRAND_DARK => self::DEFAULT_DARK,
+        self::BRAND_LOGO => null,
     ];
 
     /**
@@ -78,6 +95,38 @@ class Setting extends Model
             'lines' => array_values((array) self::get(self::SHOP_LINES)),
             'footer' => (string) self::get(self::RECEIPT_FOOTER),
         ];
+    }
+
+    /**
+     * Identité visuelle, publique (écran de connexion) : nom, activité, couleurs, version du logo.
+     *
+     * @return array{name: string, tagline: string, primary_color: string, dark_color: string, logo_version: int|null}
+     */
+    public static function branding(): array
+    {
+        $shop = self::shop();
+        $logo = self::get(self::BRAND_LOGO);
+
+        return [
+            'name' => $shop['name'],
+            'tagline' => $shop['lines'][0] ?? '',
+            'primary_color' => (string) self::get(self::BRAND_PRIMARY),
+            'dark_color' => (string) self::get(self::BRAND_DARK),
+            'logo_version' => is_array($logo) ? (int) $logo['version'] : null,
+        ];
+    }
+
+    /**
+     * Logo en data URI pour les PDF (Dompdf n'accède à aucune ressource extérieure), ou null.
+     */
+    public static function logoDataUri(): ?string
+    {
+        $logo = self::get(self::BRAND_LOGO);
+        if (! is_array($logo) || ! Storage::disk('local')->exists($logo['path'])) {
+            return null;
+        }
+
+        return 'data:'.$logo['mime'].';base64,'.base64_encode((string) Storage::disk('local')->get($logo['path']));
     }
 
     public static function put(string $key, mixed $value, ?int $userId = null): void

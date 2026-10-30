@@ -84,7 +84,7 @@ class DashboardService
             'daily_sales' => $this->dailySales($from, $to),
             'top_articles' => $this->topArticles($from, $to),
             // Dettes fournisseurs à date (toutes périodes) : reste à payer sur les acquisitions validées.
-            'purchases_due' => $this->money(Purchase::whereNotIn('status', ['draft', 'cancelled'])->sum(DB::raw('total - paid_amount'))),
+            'purchases_due' => $this->money(Purchase::whereNotIn('status', ['draft', 'cancelled'])->sum(DB::raw('total - undelivered_amount - paid_amount'))),
         ];
     }
 

@@ -304,13 +304,13 @@ class ReportService
             ->whereDate('purchase_date', '<=', $to->toDateString())
             ->when($filters['supplier_id'] ?? null, fn ($q, $id) => $q->where('supplier_id', $id)));
 
-        return new Report('purchases', '', $this->purchaseColumns(true), $rows, $this->totals($rows, ['total', 'paid', 'balance']), ['Brouillons et acquisitions annulées exclus.']);
+        return new Report('purchases', '', $this->purchaseColumns(true), $rows, $this->totals($rows, ['total', 'paid', 'balance']), ['Brouillons et acquisitions annulées exclus. Acquisition clôturée : total limité aux marchandises reçues.']);
     }
 
     private function reportPayables(Carbon $from, Carbon $to, array $filters): Report
     {
         $rows = $this->purchaseRows(Purchase::whereNotIn('status', ['draft', 'cancelled'])
-            ->whereColumn('paid_amount', '<', 'total')
+            ->whereRaw('paid_amount < total - undelivered_amount')
             ->when($filters['supplier_id'] ?? null, fn ($q, $id) => $q->where('supplier_id', $id)));
 
         return new Report('payables', '', $this->purchaseColumns(false), $rows, $this->totals($rows, ['total', 'paid', 'balance']));
@@ -473,7 +473,8 @@ class ReportService
             'reference' => $p->reference,
             'supplier' => $p->supplier->name,
             'status' => $p->status->label(),
-            'total' => $p->total,
+            // Acquisition clôturée : la valeur non livrée n'est plus due.
+            'total' => $p->net_total,
             'paid' => $p->paid_amount,
             'balance' => $p->balance_due,
         ])->all();

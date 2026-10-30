@@ -234,4 +234,24 @@ class SaleTest extends TestCase
 
         $this->assertSame(CashSession::sole()->id, Sale::sole()->cash_session_id);
     }
+
+    /** Reçu ticket 80 mm en PDF (impression depuis Android) : réservé au caissier de la vente et au propriétaire. */
+    public function test_the_receipt_is_available_as_a_ticket_pdf(): void
+    {
+        $this->openCash();
+        $sale = $this->sell()->assertCreated()->json('data');
+
+        $response = $this->get("/api/v1/sales/{$sale['id']}/pdf")
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf')
+            ->assertHeader('Content-Disposition', 'inline; filename="recu-'.$sale['reference'].'.pdf"');
+        $this->assertStringStartsWith('%PDF', $response->getContent());
+        // Largeur 80 mm (226,8 pt) : MediaBox [0 0 226.8 hauteur].
+        $this->assertMatchesRegularExpression('#/MediaBox \[0(\.0+)? 0(\.0+)? 226\.8\d* #', $response->getContent());
+
+        Sanctum::actingAs(User::factory()->cashier()->create());
+        $this->getJson("/api/v1/sales/{$sale['id']}/pdf")->assertForbidden();
+        Sanctum::actingAs(User::factory()->owner()->create());
+        $this->get("/api/v1/sales/{$sale['id']}/pdf")->assertOk();
+    }
 }

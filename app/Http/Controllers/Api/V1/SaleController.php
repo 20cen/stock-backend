@@ -7,11 +7,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\SaleResource;
 use App\Models\Customer;
 use App\Models\Sale;
+use App\Models\Setting;
 use App\Services\SaleService;
+use App\Support\PdfRenderer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Ventes. Le caissier ne voit que les siennes (sales.view_own) ; le propriétaire voit tout (sales.view_all).
@@ -60,11 +63,47 @@ class SaleController extends Controller
 
     public function show(Request $request, Sale $sale): SaleResource|JsonResponse
     {
+        if ($refusal = $this->refuseOthersSale($request, $sale)) {
+            return $refusal;
+        }
+
+        return new SaleResource($sale->load(self::DETAIL));
+    }
+
+    /**
+     * Reçu de caisse en PDF au format ticket 80 mm. Sert surtout sur Android, où l'impression
+     * depuis l'application n'est pas possible : le PDF s'ouvre dans le téléphone, qui l'imprime ou le partage.
+     */
+    public function pdf(Request $request, Sale $sale, PdfRenderer $pdf): Response
+    {
+        if ($refusal = $this->refuseOthersSale($request, $sale)) {
+            return $refusal;
+        }
+        $sale->load(['cashier', 'customer', 'lines.article', 'payments.method']);
+        $shop = Setting::shop();
+
+        // Hauteur estimée d'après le contenu (le ticket n'a qu'une page) ; 80 mm = 226,8 pt de large.
+        // Une marge de quelques lignes couvre les désignations longues qui passent à la ligne.
+        $rows = 12 + count($shop['lines']) + 2 * $sale->lines->count()
+            + $sale->lines->filter(fn ($l) => bccomp($l->discount, '0', 2) > 0)->count()
+            + $sale->payments->count() + ($shop['footer'] ? 2 : 0) + ($sale->customer ? 1 : 0);
+        $logo = Setting::get(Setting::BRAND_LOGO) ? 45 : 0;
+        $content = $pdf->render('documents.sale-ticket', ['sale' => $sale], ticket: [226.8, 30 + $logo + $rows * 11.5]);
+
+        return response($content, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="recu-'.$sale->reference.'.pdf"',
+            'Content-Length' => (string) strlen($content),
+        ]);
+    }
+
+    private function refuseOthersSale(Request $request, Sale $sale): ?JsonResponse
+    {
         if ($sale->cashier_id !== $request->user()->id && ! $request->user()->hasPermission(Permission::SalesViewAll)) {
             return response()->json(['message' => 'Cette vente a été faite par un autre utilisateur.'], 403);
         }
 
-        return new SaleResource($sale->load(self::DETAIL));
+        return null;
     }
 
     public function store(Request $request): JsonResponse

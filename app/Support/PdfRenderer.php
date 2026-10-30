@@ -7,15 +7,17 @@ use Dompdf\Dompdf;
 use Dompdf\Options;
 
 /**
- * Rendu PDF (Dompdf) d'une vue Blade : A4, police DejaVu Sans (accents), pagination en pied de page.
- * Les vues reçoivent `$shop` (nom, lignes d'en-tête) et `$editedAt`.
+ * Rendu PDF (Dompdf) d'une vue Blade : A4 avec pagination en pied de page, ou ticket de caisse ;
+ * police DejaVu Sans (accents).
+ * Les vues reçoivent `$shop` (nom, lignes d'en-tête), `$brand` (logo en data URI, couleurs) et `$editedAt`.
  */
 class PdfRenderer
 {
     /**
      * @param  array<string, mixed>  $data
+     * @param  array{0: float, 1: float}|null  $ticket  largeur et hauteur en points d'un ticket (pas de pagination)
      */
-    public function render(string $view, array $data, string $orientation = 'portrait'): string
+    public function render(string $view, array $data, string $orientation = 'portrait', ?array $ticket = null): string
     {
         $options = new Options;
         $options->setDefaultFont('DejaVu Sans');
@@ -26,10 +28,19 @@ class PdfRenderer
         $dompdf = new Dompdf($options);
         $dompdf->loadHtml(view($view, $data + [
             'shop' => Setting::shop(),
+            // Identité visuelle : logo (data URI) et couleurs réglés dans Paramètres.
+            'brand' => [
+                'logo' => Setting::logoDataUri(),
+                'primary' => Setting::get(Setting::BRAND_PRIMARY),
+                'dark' => Setting::get(Setting::BRAND_DARK),
+            ],
             'editedAt' => now()->format('d/m/Y à H:i'),
         ])->render());
-        $dompdf->setPaper('A4', $orientation);
+        $dompdf->setPaper($ticket ? [0, 0, $ticket[0], $ticket[1]] : 'A4', $ticket ? 'portrait' : $orientation);
         $dompdf->render();
+        if ($ticket) {
+            return (string) $dompdf->output();
+        }
 
         $canvas = $dompdf->getCanvas();
         $font = $dompdf->getFontMetrics()->getFont('DejaVu Sans');

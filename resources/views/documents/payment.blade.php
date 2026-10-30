@@ -23,6 +23,12 @@
         </tr>
     </table>
 
+    @if ($payment->cancelled_at)
+        <p class="amount" style="color: #be123c; border-color: #be123c; font-size: 13px;">
+            PAIEMENT ANNULÉ le {{ $payment->cancelled_at->format('d/m/Y à H:i') }} : {{ $payment->cancel_reason }}
+        </p>
+    @endif
+
     <div class="amount">{{ Fr::money($payment->amount) }}</div>
 
     <table class="lines">
@@ -35,8 +41,11 @@
 
     <table class="totals">
         <tr><td>Total de l'acquisition</td><td class="num">{{ Fr::money($purchase->total) }}</td></tr>
+        @if (bccomp($purchase->undelivered_amount, '0', 2) > 0)
+            <tr><td>Non livré (acquisition clôturée)</td><td class="num">−{{ Fr::money($purchase->undelivered_amount) }}</td></tr>
+        @endif
         <tr><td>Payé avant ce paiement</td><td class="num">{{ Fr::money($paidBefore) }}</td></tr>
-        <tr><td>Ce paiement</td><td class="num">{{ Fr::money($payment->amount) }}</td></tr>
+        <tr><td>Ce paiement</td><td class="num">{{ $payment->cancelled_at ? 'annulé' : Fr::money($payment->amount) }}</td></tr>
         <tr class="strong"><td>Reste à payer</td><td class="num">{{ Fr::money($balanceAfter) }}</td></tr>
     </table>
 

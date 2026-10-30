@@ -8,6 +8,8 @@ use App\Models\Setting;
 use App\Models\User;
 use Database\Seeders\PaymentMethodSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -36,6 +38,8 @@ class SettingTest extends TestCase
             'allow_credit' => true,
             'return_days' => 15,
             'loss_auto_validate_limit' => '2500.5',
+            'primary_color' => '#4f46e5',
+            'dark_color' => '#111833',
         ];
     }
 
@@ -103,5 +107,70 @@ class SettingTest extends TestCase
         $this->getJson('/api/v1/settings')->assertForbidden();
         $this->putJson('/api/v1/settings', $this->payload())->assertForbidden();
         $this->assertSame('EMPIL', $this->getJson('/api/v1/auth/me')->json('shop.name'));
+    }
+
+    /** Identité visuelle publique : l'écran de connexion l'affiche avant toute authentification. */
+    public function test_branding_is_public_and_follows_the_settings(): void
+    {
+        $this->putJson('/api/v1/settings', $this->payload(['primary_color' => '#E21C20', 'dark_color' => '#202044']))
+            ->assertOk()
+            ->assertJsonPath('data.primary_color', '#e21c20')
+            ->assertJsonPath('branding.dark_color', '#202044');
+
+        $this->app['auth']->forgetGuards();
+        $this->getJson('/api/v1/branding')
+            ->assertOk()
+            ->assertExactJson(['data' => [
+                'name' => 'EMPIL Plateau',
+                'tagline' => 'Rue du Commerce',
+                'primary_color' => '#e21c20',
+                'dark_color' => '#202044',
+                'logo_version' => null,
+                'logo_url' => null,
+            ]]);
+    }
+
+    public function test_colors_must_be_hexadecimal(): void
+    {
+        $this->putJson('/api/v1/settings', $this->payload(['primary_color' => 'red', 'dark_color' => '#12345']))
+            ->assertJsonValidationErrors(['primary_color', 'dark_color']);
+    }
+
+    public function test_the_owner_uploads_replaces_and_removes_the_logo(): void
+    {
+        Storage::fake('local');
+
+        $first = $this->post('/api/v1/settings/logo', ['logo' => UploadedFile::fake()->image('logo.png', 300, 120)], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->json('branding.logo_version');
+        $this->assertNotNull($first);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'settings.logo_updated']);
+
+        $url = $this->getJson('/api/v1/branding')->json('data.logo_url');
+        $this->assertStringEndsWith("/api/v1/branding/logo?v={$first}", $url);
+        $this->get('/api/v1/branding/logo')->assertOk()->assertHeader('Content-Type', 'image/png');
+
+        // Les PDF intègrent le logo.
+        $this->assertStringStartsWith('data:image/png;base64,', Setting::logoDataUri());
+
+        $this->travel(5)->seconds();
+        $this->post('/api/v1/settings/logo', ['logo' => UploadedFile::fake()->image('nouveau.jpg', 200, 200)], ['Accept' => 'application/json'])->assertOk();
+        $this->assertCount(1, Storage::disk('local')->files('branding')); // l'ancien fichier est supprimé
+
+        $this->deleteJson('/api/v1/settings/logo')->assertOk()->assertJsonPath('branding.logo_version', null);
+        $this->assertCount(0, Storage::disk('local')->files('branding'));
+        $this->get('/api/v1/branding/logo')->assertNotFound();
+    }
+
+    public function test_svg_logos_and_cashiers_are_refused(): void
+    {
+        Storage::fake('local');
+        $svg = UploadedFile::fake()->createWithContent('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+
+        $this->post('/api/v1/settings/logo', ['logo' => $svg], ['Accept' => 'application/json'])->assertJsonValidationErrors('logo');
+
+        Sanctum::actingAs(User::factory()->cashier()->create());
+        $this->post('/api/v1/settings/logo', ['logo' => UploadedFile::fake()->image('logo.png', 100, 100)], ['Accept' => 'application/json'])->assertForbidden();
+        $this->deleteJson('/api/v1/settings/logo')->assertForbidden();
     }
 }

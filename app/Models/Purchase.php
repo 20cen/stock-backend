@@ -11,12 +11,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * Acquisition auprès d'un fournisseur. Écrite uniquement par App\Services\PurchaseService.
  *
+ * @property-read string $net_total
  * @property-read string $balance_due
  */
 #[Fillable([
     'reference', 'supplier_id', 'purchase_date', 'supplier_reference', 'status', 'subtotal', 'discount_total',
-    'extra_costs', 'total', 'paid_amount', 'payment_terms', 'notes', 'created_by', 'ordered_at', 'ordered_by',
-    'cancelled_at', 'cancelled_by', 'cancel_reason',
+    'extra_costs', 'total', 'undelivered_amount', 'paid_amount', 'payment_terms', 'notes', 'created_by', 'ordered_at', 'ordered_by',
+    'cancelled_at', 'cancelled_by', 'cancel_reason', 'closed_at', 'closed_by', 'close_reason',
 ])]
 class Purchase extends Model
 {
@@ -32,15 +33,23 @@ class Purchase extends Model
             'discount_total' => 'decimal:2',
             'extra_costs' => 'decimal:2',
             'total' => 'decimal:2',
+            'undelivered_amount' => 'decimal:2',
             'paid_amount' => 'decimal:2',
             'ordered_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'closed_at' => 'datetime',
         ];
+    }
+
+    /** Montant réellement dû au fournisseur : total, moins la valeur non livrée d'une acquisition clôturée. */
+    public function getNetTotalAttribute(): string
+    {
+        return bcsub($this->total, $this->undelivered_amount, 2);
     }
 
     public function getBalanceDueAttribute(): string
     {
-        return bcsub($this->total, $this->paid_amount, 2);
+        return bcsub($this->net_total, $this->paid_amount, 2);
     }
 
     /**
@@ -81,5 +90,13 @@ class Purchase extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function closer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'closed_by');
     }
 }

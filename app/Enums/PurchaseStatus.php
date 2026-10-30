@@ -8,6 +8,8 @@ enum PurchaseStatus: string
     case Ordered = 'ordered';
     case PartiallyReceived = 'partially_received';
     case Received = 'received';
+    /** Partiellement reçue, puis clôturée : le reste ne sera jamais livré. */
+    case Closed = 'closed';
     case Cancelled = 'cancelled';
 
     public function label(): string
@@ -17,6 +19,7 @@ enum PurchaseStatus: string
             self::Ordered => 'Commandée',
             self::PartiallyReceived => 'Partiellement reçue',
             self::Received => 'Reçue',
+            self::Closed => 'Clôturée',
             self::Cancelled => 'Annulée',
         };
     }

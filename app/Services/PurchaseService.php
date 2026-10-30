@@ -255,6 +255,83 @@ class PurchaseService
     }
 
     /**
+     * Clôture une acquisition partiellement reçue dont le reste ne sera jamais livré.
+     * La valeur non livrée (quantités restantes × prix net de remise) n'est plus due ; les frais restent dus.
+     */
+    public function close(Purchase $purchase, User $by, string $reason): Purchase
+    {
+        return DB::transaction(function () use ($purchase, $by, $reason) {
+            $purchase = Purchase::lockForUpdate()->findOrFail($purchase->id);
+            if ($purchase->status !== PurchaseStatus::PartiallyReceived) {
+                throw new BusinessException(match ($purchase->status) {
+                    PurchaseStatus::Ordered => 'Rien n’a encore été reçu : annulez l’acquisition au lieu de la clôturer.',
+                    PurchaseStatus::Received => 'Cette acquisition est déjà entièrement reçue.',
+                    PurchaseStatus::Closed => 'Cette acquisition est déjà clôturée.',
+                    default => 'Seule une acquisition partiellement reçue peut être clôturée.',
+                });
+            }
+
+            $scale = 10;
+            $undelivered = '0';
+            foreach ($purchase->lines()->get() as $line) {
+                if (Decimal::isZero($line->quantity_remaining)) {
+                    continue;
+                }
+                $undelivered = bcadd($undelivered, bcdiv(bcmul($line->line_total, $line->quantity_remaining, $scale), $line->quantity_ordered, $scale), $scale);
+            }
+            $undelivered = Decimal::round($undelivered, 2);
+            $netTotal = bcsub($purchase->total, $undelivered, 2);
+
+            if (bccomp($purchase->paid_amount, $netTotal, 2) > 0) {
+                throw new BusinessException(sprintf(
+                    'Les paiements enregistrés (%s) dépassent le montant dû pour les marchandises reçues (%s) : annulez d’abord le paiement en trop.',
+                    str_replace('.', ',', Decimal::trim($purchase->paid_amount)),
+                    str_replace('.', ',', Decimal::trim($netTotal)),
+                ));
+            }
+
+            $purchase->update([
+                'status' => PurchaseStatus::Closed,
+                'undelivered_amount' => $undelivered,
+                'closed_at' => now(),
+                'closed_by' => $by->id,
+                'close_reason' => $reason,
+            ]);
+            $this->audit->log('purchase.closed', $purchase, before: ['total' => $purchase->total], after: [
+                'undelivered_amount' => $undelivered, 'net_total' => $netTotal, 'balance_due' => $purchase->balance_due,
+            ], reason: $reason, userId: $by->id);
+
+            return $purchase;
+        });
+    }
+
+    /**
+     * Annule un paiement saisi par erreur : il reste visible, barré, et n'est plus compté dans le montant payé.
+     */
+    public function cancelPayment(Purchase $purchase, PurchasePayment $payment, User $by, string $reason): PurchasePayment
+    {
+        return DB::transaction(function () use ($purchase, $payment, $by, $reason) {
+            $purchase = Purchase::lockForUpdate()->findOrFail($purchase->id);
+            $payment = PurchasePayment::lockForUpdate()->findOrFail($payment->id);
+            if ($payment->purchase_id !== $purchase->id) {
+                throw new BusinessException('Ce paiement ne concerne pas cette acquisition.');
+            }
+            if ($payment->cancelled_at !== null) {
+                throw new BusinessException('Ce paiement est déjà annulé.');
+            }
+
+            $payment->update(['cancelled_at' => now(), 'cancelled_by' => $by->id, 'cancel_reason' => $reason]);
+            $purchase->update(['paid_amount' => bcsub($purchase->paid_amount, $payment->amount, 2)]);
+
+            $this->audit->log('purchase.payment_cancelled', $purchase, before: [
+                'payment_id' => $payment->id, 'amount' => $payment->amount, 'paid_at' => $payment->paid_at->toIso8601String(),
+            ], after: ['balance_due' => $purchase->balance_due], reason: $reason, userId: $by->id);
+
+            return $payment;
+        });
+    }
+
+    /**
      * Coût de revient unitaire d'une ligne : (montant net de la ligne + part des frais) / quantité commandée.
      */
     public function landedUnitCost(Purchase $purchase, PurchaseLine $line): string

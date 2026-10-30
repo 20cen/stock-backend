@@ -39,6 +39,8 @@ class PurchaseResource extends JsonResource
             'discount_total' => $this->discount_total,
             'extra_costs' => $this->extra_costs,
             'total' => $this->total,
+            'undelivered_amount' => $this->undelivered_amount,
+            'net_total' => $this->net_total,
             'paid_amount' => $this->paid_amount,
             'balance_due' => $this->balance_due,
             // Avancement en lignes entièrement reçues : additionner des pièces et des mètres n'aurait pas de sens.
@@ -87,11 +89,17 @@ class PurchaseResource extends JsonResource
                 'reference' => $p->reference,
                 'notes' => $p->notes,
                 'created_by' => ['id' => $p->creator->id, 'name' => $p->creator->name],
+                'cancelled_at' => $p->cancelled_at?->toIso8601String(),
+                'cancel_reason' => $p->cancel_reason,
+                'cancelled_by' => $p->canceller ? ['id' => $p->canceller->id, 'name' => $p->canceller->name] : null,
             ])),
             'created_by' => $this->whenLoaded('creator', fn () => ['id' => $this->creator->id, 'name' => $this->creator->name]),
             'ordered_at' => $this->ordered_at?->toIso8601String(),
             'cancelled_at' => $this->cancelled_at?->toIso8601String(),
             'cancel_reason' => $this->cancel_reason,
+            'closed_at' => $this->closed_at?->toIso8601String(),
+            'close_reason' => $this->close_reason,
+            'closed_by' => $this->whenLoaded('closer', fn () => $this->closer ? ['id' => $this->closer->id, 'name' => $this->closer->name] : null),
             'created_at' => $this->created_at?->toIso8601String(),
             // Actions possibles selon le statut et les droits ; le serveur revérifie à chaque appel.
             'can' => [
@@ -100,6 +108,8 @@ class PurchaseResource extends JsonResource
                 'cancel' => in_array($status, [PurchaseStatus::Draft, PurchaseStatus::Ordered], true) && bccomp($this->paid_amount, '0', 2) === 0,
                 'receive' => $status->canReceive() && (bool) $user?->hasPermission('receipts.validate'),
                 'pay' => $status->canPay() && bccomp($this->balance_due, '0', 2) > 0,
+                'close' => $status === PurchaseStatus::PartiallyReceived,
+                'cancel_payment' => $status->canPay(),
             ],
         ];
     }

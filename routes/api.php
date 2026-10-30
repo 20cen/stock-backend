@@ -1,7 +1,10 @@
 <?php
 
 use App\Http\Controllers\Api\V1\ArticleController;
+use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BackupController;
+use App\Http\Controllers\Api\V1\BrandingController;
 use App\Http\Controllers\Api\V1\CashSessionController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\CustomerController;
@@ -25,10 +28,13 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
+    Route::get('branding', [BrandingController::class, 'show']);
+    Route::get('branding/logo', [BrandingController::class, 'logo']);
 
     Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::get('auth/me', [AuthController::class, 'me']);
         Route::post('auth/logout', [AuthController::class, 'logout']);
+        Route::put('auth/password', [AuthController::class, 'changePassword']);
 
         Route::middleware('can:catalog.view')->group(function () {
             Route::get('categories', [CategoryController::class, 'index']);
@@ -42,6 +48,7 @@ Route::prefix('v1')->group(function () {
             Route::post('articles', [ArticleController::class, 'store']);
             Route::put('articles/{article}', [ArticleController::class, 'update']);
         });
+        Route::post('articles/{article}/cost', [ArticleController::class, 'setCost'])->middleware('can:prices.manage');
 
         Route::get('dashboard', DashboardController::class)->middleware('can:dashboard.view');
         Route::middleware('can:settings.manage')->group(function () {
@@ -49,6 +56,15 @@ Route::prefix('v1')->group(function () {
             Route::put('settings', [SettingController::class, 'update']);
             Route::post('settings/payment-methods', [SettingController::class, 'storeMethod']);
             Route::put('settings/payment-methods/{method}', [SettingController::class, 'updateMethod']);
+            Route::post('settings/logo', [SettingController::class, 'storeLogo']);
+            Route::delete('settings/logo', [SettingController::class, 'destroyLogo']);
+            Route::get('backups', [BackupController::class, 'index']);
+            Route::post('backups', [BackupController::class, 'store']);
+            Route::get('backups/{name}', [BackupController::class, 'download'])->where('name', '[A-Za-z0-9_.-]+');
+        });
+        Route::middleware('can:audit.view')->group(function () {
+            Route::get('audit-logs/filters', [AuditLogController::class, 'filters']);
+            Route::get('audit-logs', [AuditLogController::class, 'index']);
         });
         Route::middleware('can:reports.financial')->group(function () {
             Route::get('reports', [ReportController::class, 'index']);
@@ -61,7 +77,10 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('purchases', PurchaseController::class)->except('destroy');
             Route::post('purchases/{purchase}/confirm', [PurchaseController::class, 'confirm']);
             Route::post('purchases/{purchase}/cancel', [PurchaseController::class, 'cancel']);
+            Route::post('purchases/{purchase}/close', [PurchaseController::class, 'close']);
             Route::post('purchases/{purchase}/payments', [PurchaseController::class, 'pay']);
+            Route::post('purchases/{purchase}/payments/{payment}/cancel', [PurchaseController::class, 'cancelPayment']);
+            Route::get('suppliers/{supplier}/account', [SupplierController::class, 'account']);
             Route::get('purchases/{purchase}/payments/{payment}/pdf', [PurchaseController::class, 'paymentPdf']);
             Route::get('purchases/{purchase}/receipts/{receipt}/pdf', [PurchaseController::class, 'receiptPdf']);
         });
@@ -83,6 +102,7 @@ Route::prefix('v1')->group(function () {
         Route::middleware('can:sales.view_own')->group(function () {
             Route::get('sales', [SaleController::class, 'index']);
             Route::get('sales/{sale}', [SaleController::class, 'show']);
+            Route::get('sales/{sale}/pdf', [SaleController::class, 'pdf']);
         });
 
         Route::post('sales/{sale}/cancel', [SaleController::class, 'cancel'])->middleware('can:sales.cancel');

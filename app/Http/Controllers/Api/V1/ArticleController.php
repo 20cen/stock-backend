@@ -7,6 +7,9 @@ use App\Http\Requests\ArticleRequest;
 use App\Http\Resources\ArticleResource;
 use App\Models\Article;
 use App\Models\Location;
+use App\Models\Loss;
+use App\Models\SaleLine;
+use App\Models\StockMovement;
 use App\Services\AuditLogger;
 use App\Support\Decimal;
 use Illuminate\Database\Eloquent\Builder;
@@ -136,5 +139,46 @@ class ArticleController extends Controller
         }
 
         return new ArticleResource($article->load(['category', 'stockBalances']));
+    }
+
+    /**
+     * Définit le coût moyen (CMP) d'un article, typiquement entré en stock sans coût.
+     * Les opérations passées restées sans coût (mouvements, lignes de vente, pertes) reçoivent ce coût :
+     * valeur du stock, marges et coût des pertes deviennent calculables. Les coûts déjà connus ne changent pas.
+     */
+    public function setCost(Request $request, Article $article): ArticleResource
+    {
+        $data = $request->validate([
+            'average_cost' => ['required', 'decimal:0,4', 'gt:0', 'max:999999999'],
+            'reason' => ['required', 'string', 'min:3', 'max:500'],
+        ], [
+            'average_cost.required' => 'Indiquez le coût unitaire.',
+            'average_cost.gt' => 'Le coût doit être positif.',
+            'average_cost.decimal' => 'Le coût a au plus 4 décimales.',
+            'reason.required' => 'Le motif est obligatoire.',
+            'reason.min' => 'Le motif doit contenir au moins 3 caractères.',
+        ]);
+        $cost = Decimal::normalize((string) $data['average_cost'], Decimal::COST_SCALE);
+
+        DB::transaction(function () use ($article, $cost, $data) {
+            // Verrou de l'article, comme StockService : aucun mouvement ne recalcule le CMP en même temps.
+            $locked = Article::lockForUpdate()->findOrFail($article->id);
+            $before = $locked->average_cost;
+            $locked->forceFill(['average_cost' => $cost])->save();
+
+            $filled = [
+                'movements' => StockMovement::where('article_id', $locked->id)->whereNull('unit_cost')->update(['unit_cost' => $cost]),
+                'sale_lines' => SaleLine::where('article_id', $locked->id)->whereNull('unit_cost_snapshot')->update(['unit_cost_snapshot' => $cost]),
+                'losses' => 0,
+            ];
+            foreach (Loss::where('article_id', $locked->id)->whereNull('estimated_value')->get() as $loss) {
+                $loss->forceFill(['estimated_value' => Decimal::round(bcmul($loss->quantity, $cost, 8), 2)])->save();
+                $filled['losses']++;
+            }
+
+            $this->audit->log('article.cost_set', $locked, before: ['average_cost' => $before], after: ['average_cost' => $cost] + $filled, reason: $data['reason']);
+        });
+
+        return new ArticleResource($article->refresh()->load(['category', 'stockBalances']));
     }
 }

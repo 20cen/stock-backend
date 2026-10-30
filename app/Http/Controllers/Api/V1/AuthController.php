@@ -4,13 +4,18 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
+use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -54,6 +59,36 @@ class AuthController extends Controller
             'permissions' => $user->permissionCodes(),
             'shop' => Setting::shop(),
         ]);
+    }
+
+    /**
+     * « Mon compte » : chacun change son propre mot de passe. Les autres appareils sont déconnectés.
+     */
+    public function changePassword(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => ['required', 'string', 'confirmed', 'different:current_password', Password::min(8)->letters()->numbers()],
+        ], [
+            'current_password.required' => 'Saisissez votre mot de passe actuel.',
+            'password.confirmed' => 'Les deux saisies du nouveau mot de passe ne sont pas identiques.',
+            'password.different' => 'Le nouveau mot de passe doit être différent de l’actuel.',
+        ] + UpdateUserRequest::frenchMessages());
+
+        $user = $request->user();
+        if (! Hash::check($data['current_password'], $user->password)) {
+            $this->audit->log('auth.password_change_failed', $user);
+            throw ValidationException::withMessages(['current_password' => 'Mot de passe actuel incorrect.']);
+        }
+
+        DB::transaction(function () use ($user, $data) {
+            $user->update(['password' => $data['password']]);
+            $current = $user->currentAccessToken();
+            $user->tokens()->when($current instanceof PersonalAccessToken, fn ($q) => $q->whereKeyNot($current->getKey()))->delete();
+            $this->audit->log('auth.password_changed', $user);
+        });
+
+        return response()->json(['message' => 'Mot de passe modifié. Vos autres appareils ont été déconnectés.']);
     }
 
     public function logout(Request $request): JsonResponse

@@ -27,7 +27,9 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class PurchaseController extends Controller
 {
-    private const DETAIL = ['supplier', 'creator', 'lines.article', 'receipts.location', 'receipts.receiver', 'receipts.lines.article', 'payments.method', 'payments.creator'];
+    private const DETAIL = ['supplier', 'creator', 'closer', 'lines.article', 'receipts.location', 'receipts.receiver', 'receipts.lines.article', 'payments.method', 'payments.creator', 'payments.canceller'];
+
+    private const REASON_MESSAGES = ['reason.required' => 'Le motif est obligatoire.', 'reason.min' => 'Le motif doit contenir au moins 3 caractères.'];
 
     public function __construct(private readonly PurchaseService $purchases) {}
 
@@ -55,7 +57,7 @@ class PurchaseController extends Controller
             ->when($filters['status'] ?? null, fn (Builder $q, $status) => $q->where('status', $status))
             ->when($filters['supplier_id'] ?? null, fn (Builder $q, $id) => $q->where('supplier_id', $id))
             ->when($request->boolean('unpaid'), fn (Builder $q) => $q
-                ->whereColumn('paid_amount', '<', 'total')
+                ->whereRaw('paid_amount < total - undelivered_amount')
                 ->whereNotIn('status', [PurchaseStatus::Draft->value, PurchaseStatus::Cancelled->value]))
             ->when($filters['from'] ?? null, fn (Builder $q, $from) => $q->whereDate('purchase_date', '>=', $from))
             ->when($filters['to'] ?? null, fn (Builder $q, $to) => $q->whereDate('purchase_date', '<=', $to))
@@ -99,6 +101,22 @@ class PurchaseController extends Controller
             ['reason.required' => 'Le motif d’annulation est obligatoire.', 'reason.min' => 'Le motif doit contenir au moins 3 caractères.'],
         );
         $this->purchases->cancel($purchase, $request->user(), $data['reason']);
+
+        return new PurchaseResource($purchase->refresh()->load(self::DETAIL));
+    }
+
+    public function close(Request $request, Purchase $purchase): PurchaseResource
+    {
+        $data = $request->validate(['reason' => ['required', 'string', 'min:3', 'max:500']], self::REASON_MESSAGES);
+        $this->purchases->close($purchase, $request->user(), $data['reason']);
+
+        return new PurchaseResource($purchase->refresh()->load(self::DETAIL));
+    }
+
+    public function cancelPayment(Request $request, Purchase $purchase, PurchasePayment $payment): PurchaseResource
+    {
+        $data = $request->validate(['reason' => ['required', 'string', 'min:3', 'max:500']], self::REASON_MESSAGES);
+        $this->purchases->cancelPayment($purchase, $payment, $request->user(), $data['reason']);
 
         return new PurchaseResource($purchase->refresh()->load(self::DETAIL));
     }
@@ -165,8 +183,8 @@ class PurchaseController extends Controller
         $payment->load(['method', 'creator']);
 
         $previous = PurchasePayment::where('purchase_id', $purchase->id)->where('id', '<', $payment->id);
-        $paidBefore = Decimal::round((string) ((clone $previous)->sum('amount') ?: '0'), 2);
-        // Numéro lisible : ACH-2026-00001 / P2 pour le 2e paiement de l'acquisition.
+        $paidBefore = Decimal::round((string) ((clone $previous)->whereNull('cancelled_at')->sum('amount') ?: '0'), 2);
+        // Numéro lisible et stable : ACH-2026-00001 / P2 pour le 2e paiement saisi, annulés compris.
         $number = "{$purchase->reference} / P".($previous->count() + 1);
 
         $content = $pdf->render('documents.payment', [
@@ -174,7 +192,7 @@ class PurchaseController extends Controller
             'payment' => $payment,
             'number' => $number,
             'paidBefore' => $paidBefore,
-            'balanceAfter' => bcsub(bcsub($purchase->total, $paidBefore, 2), $payment->amount, 2),
+            'balanceAfter' => bcsub(bcsub($purchase->net_total, $paidBefore, 2), $payment->cancelled_at ? '0' : $payment->amount, 2),
         ]);
 
         return $this->pdfResponse($content, 'recu-paiement-'.str_replace(' / ', '-', $number).'.pdf');
